@@ -6,6 +6,8 @@ VERSION=$(node -p "require('./package.json').version")
 BUILD="${BUILD_NUMBER:-${GITHUB_RUN_NUMBER:-1}}"
 OUT=build/ios
 rm -rf "$OUT" && mkdir -p "$OUT"
+# The native bridge (widget data, appearance) is registered by MainViewController.
+grep -q "MainViewController()" ios/App/App/SceneDelegate.swift || { echo "SceneDelegate must create MainViewController"; exit 1; }
 
 xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release \
   -destination 'generic/platform=iOS' -derivedDataPath "$OUT/DerivedData" \

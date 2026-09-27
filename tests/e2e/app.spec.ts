@@ -1,300 +1,179 @@
-import { test, expect } from "@playwright/test";
-import AxeBuilder from "@axe-core/playwright";
-import * as Legacy from "../../src/legacy/core.js";
-import { spawn } from "node:child_process";
-const sample = async (page: import("@playwright/test").Page) => {
+import { expect, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { seedScript, seedState } from "../seed";
+
+const TODAY = "2026-09-27";
+const DB = "packcalendar3:/PackCalendar/";
+
+async function start(page: Page, seed = true, time = `${TODAY}T08:00:00+09:00`) {
+  await page.clock.install({ time: new Date(time) });
+  if (seed) {
+    await page.goto("manifest.webmanifest");
+    await page.evaluate(seedScript(seedState(TODAY), DB));
+  }
   await page.goto("./");
-  await page.getByRole("button", { name: "サンプルで体験する" }).click();
-  await expect(
-    page.getByRole("heading", { name: "ホーム", exact: true }),
-  ).toBeVisible();
+  await expect(page.locator(".month")).toBeVisible();
+}
+const wide = (page: Page) => (page.viewportSize()?.width ?? 0) >= 900;
+const openDay = async (page: Page, label: RegExp) => {
+  await page.getByRole("button", { name: label }).click();
 };
-const nav = (page: import("@playwright/test").Page, name: string) =>
-  page.getByRole("navigation").getByRole("link", { name, exact: true }).click();
-const dialog = (page: import("@playwright/test").Page) =>
-  page.getByRole("dialog").last();
-const dismiss = async (page: import("@playwright/test").Page) => {
-  const button = page.getByRole("button", { name: "メッセージを閉じる" });
-  if (await button.count()) await button.click();
-};
-test("ホーム統合・3タブ・任意の準備・中身・Undo・空にする", async ({
-  page,
-}, info) => {
-  const errors: string[] = [];
-  page.on("pageerror", (e) => errors.push(e.message));
-  await sample(page);
-  await expect(page.getByRole("navigation").getByRole("link")).toHaveCount(3);
-  await expect(page.locator(".prep-line")).toHaveCount(2);
-  await expect(page.locator(".calendar")).toBeVisible();
-  await page.getByRole("button", { name: "財布を準備済みにする" }).click();
-  await expect(page.locator(".prep-line")).toHaveCount(1);
-  await page.getByRole("button", { name: "元に戻す", exact: true }).click();
-  await expect(page.locator(".prep-line")).toHaveCount(2);
-  await page.getByRole("button", { name: "詳細", exact: true }).click();
-  await expect(
-    dialog(page).getByRole("heading", { name: "足りない" }),
-  ).toBeVisible();
-  await dialog(page)
-    .getByRole("button", { name: "財布をいつものリュックへ移す", exact: true })
-    .first()
-    .click();
-  await expect(dialog(page).locator(".inside-panel")).toContainText("財布");
-  await dialog(page)
-    .getByRole("button", { name: "バッグを空にした（自宅へ）" })
-    .click();
-  await expect(dialog(page).locator(".contents-panel-header")).toContainText(
-    "入っている 0点",
+const state = (page: Page) =>
+  page.evaluate(
+    (db) =>
+      new Promise<any>((resolve) => {
+        const req = indexedDB.open(db);
+        req.onsuccess = () => {
+          const get = req.result.transaction("kv").objectStore("kv").get("state");
+          get.onsuccess = () => resolve(get.result.value);
+        };
+      }),
+    DB,
   );
-  await dialog(page)
-    .getByRole("button", { name: "閉じる", exact: true })
-    .first()
-    .click();
-  await dismiss(page);
-  await page.getByRole("button", { name: "今から準備", exact: true }).click();
-  await dialog(page)
-    .getByRole("button", { name: "ミニバッグ", exact: true })
-    .click();
-  await expect(dialog(page)).toContainText("ミニバッグ");
-  await page.screenshot({
-    path: `test-results/v2-${info.project.name}-contents.png`,
-    fullPage: true,
-  });
-  expect(errors).toEqual([]);
+
+test("text outside inputs cannot be selected", async ({ page }) => {
+  await start(page);
+  const outside = await page.locator(".bar").first().evaluate((el) => getComputedStyle(el).userSelect);
+  expect(outside).toBe("none");
+  // Try to select a title by triple click / drag: nothing gets selected.
+  const title = page.locator(".title").first();
+  await title.click({ clickCount: 3 });
+  const box = (await page.locator(".prep").boundingBox())!;
+  await page.mouse.move(box.x + 5, box.y + 5);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width - 5, box.y + box.height - 5);
+  await page.mouse.up();
+  expect(await page.evaluate(() => getSelection()?.toString() ?? "")).toBe("");
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "予定を追加" }).first().click();
+  const inside = await page.getByLabel("タイトル").evaluate((el) => getComputedStyle(el).userSelect);
+  expect(["text", "auto"]).toContain(inside);
 });
-test("クイック写真登録・連続登録・場所と基本セット・カテゴリと場所", async ({
-  page,
-}) => {
-  await sample(page);
-  await nav(page, "持ち物");
-  await page.getByRole("button", { name: "クイック登録", exact: true }).click();
-  await dialog(page)
-    .getByLabel("写真ファイル", { exact: true })
-    .setInputFiles("assets/icon-192.png");
-  await expect(dialog(page).getByAltText("選択した写真")).toBeVisible();
-  await dialog(page).getByLabel("名前", { exact: true }).fill("社員証");
-  await dialog(page)
-    .getByLabel("入っているバッグ（任意）")
-    .selectOption({ label: "いつものリュック" });
-  await dialog(page).getByLabel("続けて登録する").check();
-  await dialog(page).getByRole("button", { name: "保存して次へ" }).click();
-  await expect(dialog(page).getByLabel("名前", { exact: true })).toHaveValue(
-    "",
-  );
-  await dialog(page).getByLabel("名前", { exact: true }).fill("折りたたみ傘");
-  await dialog(page).getByLabel("続けて登録する").uncheck();
-  await dialog(page)
-    .getByRole("button", { name: "保存する", exact: true })
-    .click();
-  await page
-    .locator(".bag-open")
-    .filter({ hasText: "いつものリュック" })
-    .click();
-  await expect(dialog(page).locator(".inside-panel")).toContainText("社員証");
-  await expect(
-    dialog(page).getByRole("button", { name: "社員証を基本セットから外す" }),
-  ).toHaveAttribute("aria-pressed", "true");
-  await dialog(page)
-    .getByRole("button", { name: "閉じる", exact: true })
-    .first()
-    .click();
-  await nav(page, "設定");
-  await page.getByRole("button", { name: "保管場所を追加" }).click();
-  await dialog(page).getByLabel("場所の名前").fill("職場ロッカー");
-  await dialog(page).getByRole("button", { name: "保存する" }).click();
-  await expect(page.locator(".settings-grid")).toContainText("職場ロッカー");
+
+test("month shows readable event titles and holidays", async ({ page }) => {
+  await start(page);
+  const bar = page.locator(".bar", { hasText: "敬老の日" });
+  await expect(bar).toBeVisible();
+  const univ = page.locator(".day", { hasText: "28" }).locator(".bar", { hasText: "大学" }).first();
+  await expect(univ).toBeVisible();
+  const box = await univ.boundingBox();
+  expect(box!.width).toBeGreaterThan(30);
+  expect(box!.height).toBeGreaterThanOrEqual(15);
+  await page.getByRole("button", { name: "設定", exact: true }).click();
+  await page.getByRole("switch", { name: "祝日" }).click();
+  await page.getByRole("button", { name: "カレンダー", exact: true }).click();
+  await expect(page.locator(".bar", { hasText: "敬老の日" })).toHaveCount(0);
 });
-test("終了任意・終日・複数曜日・必要セットチップ・一時持ち物・同名補完", async ({
-  page,
-}) => {
-  await sample(page);
-  await page.locator(".fab:visible, .desktop-add:visible").first().click();
-  await dialog(page).getByLabel("予定名", { exact: true }).fill("大学で作業");
-  await dialog(page).getByLabel("日付", { exact: true }).click();
-  await expect(dialog(page).getByLabel("使用バッグ")).not.toHaveValue("");
-  await dialog(page).getByLabel("予定名", { exact: true }).fill("集中講義");
-  await dialog(page).getByLabel("終日", { exact: true }).check();
-  await dialog(page).locator("summary").click();
-  await dialog(page)
-    .getByRole("combobox", { name: "繰り返し", exact: true })
-    .selectOption("weekly");
-  const checks = dialog(page)
-    .getByRole("group", { name: "繰り返す曜日" })
-    .getByRole("checkbox");
-  for (const c of await checks.all()) await c.uncheck();
-  await dialog(page).getByLabel("月", { exact: true }).check();
-  await dialog(page).getByLabel("水", { exact: true }).check();
-  await dialog(page)
-    .getByRole("button", { name: "財布をこの予定から外す" })
-    .click();
-  await dialog(page).getByPlaceholder("例：提出する書類").fill("返却する本");
-  await dialog(page).getByPlaceholder("例：提出する書類").press("Enter");
-  await dialog(page)
-    .getByRole("button", { name: "保存する", exact: true })
-    .click();
-  await expect(page.getByRole("dialog")).toHaveCount(0);
-  await page.reload();
-  await expect(page.locator(".calendar")).toBeVisible();
+
+test("prep card groups moves by source and opens the bag", async ({ page }) => {
+  await start(page);
+  const card = page.locator(".prep");
+  await expect(card).toContainText("明日 9:00 大学");
+  await expect(card).toContainText("ミニバッグから");
+  await expect(card).toContainText("自宅から");
+  await expect(card).toContainText("鍵・学生証");
+  await expect(card).toContainText("今回だけ");
+  await card.click();
+  await page.getByRole("button", { name: "財布をリュックに入れる" }).click();
+  await expect(page.locator(".toast")).toContainText("財布 → リュック");
+  await expect(page.getByRole("button", { name: "財布を出す" })).toBeVisible();
+  await page.getByRole("button", { name: "元に戻す" }).click();
+  await expect(page.getByRole("button", { name: "財布をリュックに入れる" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(card).toContainText("ミニバッグから");
 });
-test("バックアップ写真往復・不正ファイルの拒否・別タブ更新", async ({
-  page,
-  context,
-}) => {
-  await sample(page);
-  await nav(page, "持ち物");
-  await page.getByRole("button", { name: "クイック登録", exact: true }).click();
-  await dialog(page)
-    .getByLabel("写真ファイル", { exact: true })
-    .setInputFiles("assets/icon-192.png");
-  await expect(dialog(page).getByAltText("選択した写真")).toBeVisible();
-  await dialog(page).getByLabel("名前", { exact: true }).fill("写真のテスト");
-  await dialog(page)
-    .getByRole("button", { name: "保存する", exact: true })
-    .click();
-  await expect(page.getByRole("dialog")).toHaveCount(0);
-  await nav(page, "設定");
-  const [download] = await Promise.all([
-    page.waitForEvent("download"),
-    page.getByRole("button", { name: "書き出す", exact: true }).click(),
-  ]);
-  const path = await download.path();
-  expect(path).toBeTruthy();
-  await page
-    .getByLabel("バックアップファイル", { exact: true })
-    .setInputFiles({
-      name: "broken.json",
-      mimeType: "application/json",
-      buffer: Buffer.from("{broken"),
-    });
-  await expect(page.getByRole("alert")).toContainText("JSON");
+
+test("auto completion records items at the start time", async ({ page }) => {
+  await start(page);
+  await page.clock.runFor(26 * 3600 * 1000); // past tomorrow 9:00
+  await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+  await expect.poll(async () => (await state(page)).items.find((i: any) => i.id === "wallet").at).toBe("pack");
+});
+
+test("add, edit one occurrence and delete an event", async ({ page }) => {
+  await start(page);
+  await page.getByRole("button", { name: "予定を追加" }).first().click();
+  await page.getByLabel("タイトル").fill("ジム");
+  await page.getByLabel("開始日").fill("2026-09-29");
+  await page.getByRole("button", { name: "トート" }).click();
+  await page.getByRole("button", { name: "保存" }).click();
+  await expect(page.locator(".day", { hasText: "29" }).locator(".bar", { hasText: "ジム" })).toBeVisible();
+
+  // Same title fills the bag.
+  await page.getByRole("button", { name: "予定を追加" }).first().click();
+  await page.getByLabel("タイトル").fill("ジム");
+  await expect(page.getByRole("button", { name: "トート" })).toHaveAttribute("aria-pressed", "true");
+  await page.keyboard.press("Escape");
+
+  // Edit only one occurrence of a weekly event.
+  if (!wide(page)) await openDay(page, /^9月30日/);
+  else await page.getByRole("button", { name: /^9月30日/ }).click();
+  await page.locator(".ev", { hasText: "大学" }).click();
+  await page.getByRole("button", { name: "編集" }).click();
+  await page.getByLabel("タイトル").fill("休講");
+  await page.getByRole("button", { name: "保存" }).click();
+  await page.getByRole("button", { name: "この予定のみ" }).click();
+  await expect(page.locator(".detail-title")).toHaveText("休講");
+  await page.keyboard.press("Escape");
+  if (!wide(page)) await page.keyboard.press("Escape");
+  await expect(page.locator(".day", { hasText: "28" }).locator(".bar", { hasText: "大学" })).toBeVisible();
+  const s = await state(page);
+  expect(Object.keys(s.exceptions)).toEqual(["univ@2026-09-30"]);
+
+  // Delete.
+  if (!wide(page)) await openDay(page, /^9月29日/);
+  else await page.getByRole("button", { name: /^9月29日/ }).click();
+  await page.locator(".ev", { hasText: "ジム" }).click();
+  await page.getByRole("button", { name: "編集" }).click();
+  await page.getByRole("button", { name: "予定を削除" }).click();
+  await expect(page.locator(".toast")).toContainText("削除しました");
+  await expect(page.locator(".bar", { hasText: "ジム" })).toHaveCount(0);
+});
+
+test("register items quickly and pin them to a bag", async ({ page }) => {
+  await start(page, false);
+  await page.getByRole("button", { name: "持ち物", exact: true }).click();
+  await page.getByRole("button", { name: "バッグを追加" }).click();
+  await page.getByLabel("名前").fill("リュック");
+  await page.getByRole("button", { name: "保存" }).click();
+  await page.getByRole("button", { name: "持ち物を追加" }).click();
+  await page.getByLabel("名前").fill("財布");
+  await page.getByRole("group", { name: "場所" }).getByRole("button", { name: "リュック" }).click();
+  await expect(page.getByRole("group", { name: "いつも入れるバッグ" }).getByRole("button", { name: "リュック" })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "続けて追加" }).click();
+  await page.getByLabel("名前").fill("鍵");
+  // The place carries over for the next item; switch it back to home.
+  await expect(page.getByRole("group", { name: "場所" }).getByRole("button", { name: "リュック" })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("group", { name: "場所" }).getByRole("button", { name: "自宅" }).click();
+  await page.getByRole("button", { name: "保存" }).click();
+  await expect(page.locator(".row", { hasText: "財布" })).toContainText("リュック");
+  await expect(page.locator(".row", { hasText: "鍵" })).toContainText("自宅");
+  await page.locator(".row", { hasText: "リュック" }).first().click();
+  await expect(page.getByRole("button", { name: "財布を基本セットに入れない" })).toBeVisible();
+  await page.getByRole("button", { name: "鍵を基本セットに入れる" }).click();
+  await expect.poll(async () => (await state(page)).bags[0].itemIds.length).toBe(2);
+});
+
+test("dark mode setting switches the theme", async ({ page }) => {
+  await start(page);
+  await page.getByRole("button", { name: "設定", exact: true }).click();
+  await page.getByRole("button", { name: "ダーク" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  expect(bg).toBe("rgb(17, 17, 17)");
+  await expect(page.getByText("ウィジェット")).toHaveCount(0);
+});
+
+test("backup round trip", async ({ page }) => {
+  await start(page);
+  await page.getByRole("button", { name: "設定", exact: true }).click();
+  const download = page.waitForEvent("download");
+  await page.getByRole("button", { name: "書き出す" }).click();
+  const file = await (await download).path();
+  await page.getByRole("button", { name: "すべて削除" }).click();
+  await page.getByRole("button", { name: "もう一度押すと削除します" }).click();
+  await expect.poll(async () => (await state(page)).events.length).toBe(0);
   page.once("dialog", (d) => d.accept());
-  await page
-    .getByLabel("バックアップファイル", { exact: true })
-    .setInputFiles(path!);
-  await expect(page.locator(".toast")).toContainText("読み込みました");
-  await nav(page, "持ち物");
-  await page.getByRole("tab", { name: "持ち物", exact: true }).click();
-  await expect(
-    page
-      .locator(".item-list-row")
-      .filter({ hasText: "写真のテスト" })
-      .locator("img"),
-  ).toBeVisible();
-  await nav(page, "設定");
-  const other = await context.newPage();
-  await other.goto("./#settings");
-  await other
-    .getByRole("combobox", { name: "週の始まり", exact: true })
-    .selectOption("0");
-  await expect(
-    page.getByRole("combobox", { name: "週の始まり", exact: true }),
-  ).toHaveValue("0");
-  await other.close();
-});
-test("旧版localStorageを自動移行し、元の記録を残す", async ({ page }) => {
-  const old = Legacy.sampleState(new Date());
-  await page.addInitScript((raw) => {
-    if (!localStorage.getItem("packcalendar:v1:/PackCalendar/"))
-      localStorage.setItem("packcalendar:v1:/PackCalendar/", raw);
-  }, JSON.stringify(old));
-  await page.goto("./");
-  await expect(
-    page.getByRole("heading", { name: "ホーム", exact: true }),
-  ).toBeVisible();
-  await expect(page.locator(".prep-line")).toHaveCount(2);
-  await nav(page, "持ち物");
-  await expect(page.locator(".bag-grid")).toContainText("いつものリュック");
-  expect(
-    await page.evaluate(
-      () => !!localStorage.getItem("packcalendar:v1:/PackCalendar/"),
-    ),
-  ).toBe(true);
-});
-test("320px・各画面の横幅・フォーム・色コントラストとアクセシビリティ", async ({
-  page,
-}, info) => {
-  await page.setViewportSize({ width: 320, height: 780 });
-  await sample(page);
-  await dismiss(page);
-  for (const name of ["ホーム", "持ち物", "設定"]) {
-    await nav(page, name);
-    expect(
-      await page.evaluate(
-        () => document.documentElement.scrollWidth <= innerWidth,
-      ),
-    ).toBe(true);
-    const results = await new AxeBuilder({ page })
-      .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
-      .analyze();
-    expect(
-      results.violations.map((v) => ({
-        id: v.id,
-        targets: v.nodes.map((n) => n.target),
-      })),
-    ).toEqual([]);
-  }
-  await nav(page, "ホーム");
-  await page.locator(".fab:visible, .desktop-add:visible").first().click();
-  expect(
-    await dialog(page).evaluate((e) => e.scrollWidth <= e.clientWidth),
-  ).toBe(true);
-  const result = await new AxeBuilder({ page })
-    .withTags(["wcag2a", "wcag2aa"])
-    .analyze();
-  expect(result.violations.map((v) => v.id)).toEqual([]);
-  await page.screenshot({
-    path: `test-results/v2-${info.project.name}-event-320.png`,
-    fullPage: true,
-  });
-});
-test("配信サブパスのmanifestとSW・保存後のオフライン再読込", async ({
-  page,
-  context,
-}, info) => {
-  const safari = info.project.name === "ios-webkit";
-  const server = safari
-    ? spawn(process.execPath, ["scripts/serve-build.mjs"], {
-        env: { ...process.env, PORT: "4177" },
-        windowsHide: true,
-        stdio: "pipe",
-      })
-    : null;
-  try {
-    if (server) {
-      await new Promise<void>((resolve, reject) => {
-        server.stdout.once("data", () => resolve());
-        server.once("error", reject);
-      });
-      await page.goto("http://127.0.0.1:4177/PackCalendar/");
-      await page.getByRole("button", { name: "サンプルで体験する" }).click();
-    } else await sample(page);
-    await page.evaluate(() => navigator.serviceWorker.ready);
-    await page.reload();
-    const data = await page.evaluate(async () => {
-      const link =
-        document.querySelector<HTMLLinkElement>("link[rel=manifest]")!;
-      const m = await (await fetch(link.href)).json();
-      return {
-        scope: (await navigator.serviceWorker.ready).scope,
-        manifest: link.href,
-        icon: new URL(m.icons[0].src, link.href).href,
-      };
-    });
-    expect(data.scope).toContain("/PackCalendar/");
-    expect((await page.request.get(data.icon)).status()).toBe(200);
-    if (server) {
-      await new Promise<void>((resolve) => {
-        server.once("exit", () => resolve());
-        server.kill();
-      });
-      await expect(fetch("http://127.0.0.1:4177/")).rejects.toThrow();
-    } else await context.setOffline(true);
-    await page.reload();
-    await expect(
-      page.getByRole("heading", { name: "ホーム", exact: true }),
-    ).toBeVisible();
-    await nav(page, "持ち物");
-    await expect(page.locator(".bag-grid")).toContainText("いつものリュック");
-  } finally {
-    if (server && server.exitCode === null) server.kill();
-  }
+  await page.locator('input[type="file"]').setInputFiles(file);
+  await expect.poll(async () => (await state(page)).events.length).toBe(6);
 });

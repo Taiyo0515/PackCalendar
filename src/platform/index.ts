@@ -1,24 +1,26 @@
 import { Capacitor } from "@capacitor/core";
-import type { Repository } from "./repository";
-import { WebScheduler } from "./web";
+import type { Theme } from "../core/model";
+import type { Notice } from "../core/schedule";
+import type { Store } from "./store";
+
 export const isNative = Capacitor.isNativePlatform();
-export async function getScheduler(repo: Repository) {
-  return isNative
-    ? new (await import("./native")).NativeScheduler()
-    : new WebScheduler(repo);
+const native = () => import("./native");
+const push = () => import("./push");
+
+export async function syncNotices(store: Store, list: Notice[]) {
+  if (isNative) await (await native()).scheduleLocal(list);
+  else await (await push()).syncPush(store, list);
 }
-export async function nativeBackup(json: string) {
-  if (isNative) await (await import("./native")).autoBackup(json);
+export async function syncWidget(json: string) {
+  if (isNative) await (await native()).saveWidget(json);
 }
-export async function capturePhoto(): Promise<Blob | null> {
-  if (!isNative) return null;
-  const { Camera, CameraResultType, CameraSource } =
-    await import("@capacitor/camera");
-  const photo = await Camera.getPhoto({
-    quality: 85,
-    resultType: CameraResultType.Uri,
-    source: CameraSource.Camera,
-  });
-  if (!photo.webPath) throw new Error("写真を読み込めませんでした。");
-  return (await fetch(photo.webPath)).blob();
+export async function syncAppearance(mode: Theme) {
+  if (isNative) await (await native()).setAppearance(mode);
+}
+export async function backupDaily(store: Store, json: () => Promise<string>) {
+  if (!isNative) return;
+  const today = new Date().toISOString().slice(0, 10);
+  if ((await store.getMeta<string>("lastBackup")) === today) return;
+  await (await native()).dailyBackup(await json());
+  await store.setMeta("lastBackup", today);
 }

@@ -1,56 +1,58 @@
-# 公開・通知・iOS配布
+# 公開と配布
 
-## Web
+## Web（GitHub Pages）
 
-mainのGitHub Actionsがテスト後に `dist/` をPagesへ公開する。`VITE_PUSH_URL` は公開URLだけを設定するビルド変数。
+main に push すると `.github/workflows/pages.yml` が、テスト → ビルド → Playwright → Pages への公開を行います。
 
-## Cloudflare
+- リポジトリの Variables に `VITE_PUSH_URL`（通知 Worker の URL）を設定します。
+- 公開 URL：https://taiyo0515.github.io/PackCalendar/
+- 旧版（v2）のデータは、同じ URL で初めて開いたときに自動で引き継がれます。
 
-WranglerはプロジェクトのdevDependencies。グローバル導入は不要。
+## 通知サーバー（Cloudflare Worker）
 
-```sh
-npx wrangler login --device --scopes account:read user:read workers:write workers_scripts:write d1:write
-npx wrangler d1 create packcalendar-push --config worker/wrangler.jsonc
-```
-
-既存DBを使う場合は作成を繰り返さない。`worker/wrangler.jsonc` のdatabase_idを実際のDBに合わせる。
+以前の版から API を変えていないので、公開済みの Worker をそのまま使えます。作り直す場合の手順です。
 
 ```sh
+npx wrangler login
+npx wrangler d1 create packcalendar-push --config worker/wrangler.jsonc   # 既存があれば不要
 npx wrangler d1 execute packcalendar-push --remote --file worker/schema.sql --config worker/wrangler.jsonc
-node scripts/create-push-secrets.mjs
+node scripts/create-push-secrets.mjs      # 初回のみ。worker/.dev.vars.json を作る（Git に入れない）
 npm run worker:deploy
 npx wrangler secret bulk worker/.dev.vars.json --config worker/wrangler.jsonc
 ```
 
-鍵生成は初回のみ。既存ファイルは上書きしない。`.dev.vars.json` の秘密鍵と招待コードをGitへ含めず安全に保管する。鍵を変更すると既存購読の再接続が必要になる。招待コードはサイトの設定に入力し、秘密鍵は入力しない。
+アプリの設定で通知をオンにし、`worker/.dev.vars.json` の `INVITATION_CODE`（招待コード）を入れて接続します。iPhone の Web 版で通知を受け取るには、Safari でホーム画面に追加したアプリから接続します。
 
-通知URL: `https://packcalendar-push.yasunaga0515.workers.dev`。許可Origin: `https://taiyo0515.github.io`。他ホストでは設定を変更する。CORSだけを認証とせず、端末ごとのランダムトークンを発行し、サーバーにはハッシュを保存する。
+## iPhone アプリ（GitHub Actions ＋ SideStore）
 
-配信確認は実際の端末で差分が出る予定と通知時刻を作成し、予約一覧を確認してアプリを閉じて行う。予定変更・削除後と接続解除後も確認する。停止時はサーバー予約の削除をオンラインで完了させる。
+### ビルド
 
-## Codemagic
+- 手動：GitHub の Actions → **Build iOS IPA** → Run workflow。成果物（Artifacts）の `PackCalendar-ipa` に ipa が入ります。
+- リリース：`ios-v3.0.0` のようなタグを push すると、同じビルドのあと GitHub Releases に ipa と SHA-256 を添付します。
 
-1. GitHubの **Taiyo0515/PackCalendar** を選び、rootの `codemagic.yaml` を読み込む。
-2. `ios-unsigned` でmainを手動ビルドする。Apple署名用証明書は不要。
-3. Artifactsから `PackCalendar-unsigned.ipa` を取得する。
-4. `ios-v*` タグのビルドをGitHub Releasesへ配布する場合は、Codemagicの暗号化環境変数 `GH_TOKEN` に、このリポジトリだけのContents:writeトークンを設定する。ソースやチャットへ記載しない。
+```sh
+git tag ios-v3.0.0
+git push origin ios-v3.0.0
+```
 
-Codemagicのリポジトリ選択はアカウント側に残る操作。GitHub Actionsの **Build iOS IPA → Run workflow** でも同じ `scripts/build-ios.sh` を実行でき、Artifactsから取得できる。
+ビルドの流れ（`.github/workflows/ios.yml`）：
 
-macOS/Xcodeで実機用appを未署名ビルドし、Payloadに入れてIPA化する。WindowsではXcodeビルドを実行できない。アプリには通知・Camera・Filesystem・Files共有設定・Privacy Manifestを含む。
+1. `npm run build` → `npx cap sync ios`
+2. `ruby scripts/ios/add_widget_target.rb`：Xcode プロジェクトにウィジェットの拡張と、ネイティブのブリッジを追加する
+3. `bash scripts/ios/build.sh`：署名なしでビルド → App Group のエンタイトルメントをアドホック署名で埋め込む → ipa にする
 
-## SideStoreと実機確認
+Windows では Xcode を動かせないため、iOS のビルドは GitHub Actions の macOS で行います。
 
-[ビルド済みIPAとチェックサム](https://github.com/Taiyo0515/PackCalendar/releases/tag/ios-v2.0.0)を公開しています。未署名のプレビューです。
+### インストール（SideStore）
 
-SideStore本体の導入・ペアリングは[公式手順](https://docs.sidestore.io/)に従う。IPAをiPhoneへ保存し、SideStoreから追加して自分のApple IDで署名する。再署名の期限・更新はSideStoreの表示に従う。PackCalendarの通知を許可する。
+1. SideStore を[公式の手順](https://docs.sidestore.io/)で導入しておく。
+2. ipa を iPhone に保存し、SideStore の「＋」から追加する。
+3. 拡張（ウィジェット）を削除するか聞かれたら、残す。無料の Apple ID で同時に使えるアプリの枠が足りない場合だけ削除する（アプリはウィジェットなしで動く）。
+4. PackCalendar を開き、通知を許可する。
+5. ホーム画面を長押し → 左上の「＋」→ PackCalendar から、「準備」（小）と「カレンダー」（大）を追加する。
 
-確認項目: 撮影・写真再読込、アプリを閉じた状態の通知、時刻変更・削除後の通知、Filesでの自動バックアップ、写真付き復元、日別7世代保持、再署名後のデータ保持。Web版とネイティブ版は別の保存領域で、JSON書き出し・読み込みで移す。
+### 注意
 
-## 一次資料
-
-- [Capacitor Filesystem](https://capacitorjs.com/docs/apis/filesystem)
-- [Capacitor Local Notifications](https://capacitorjs.com/docs/apis/local-notifications)
-- [Codemagic YAML](https://docs.codemagic.io/yaml-basic-configuration/yaml-getting-started/)
-- [Cloudflare Cron](https://developers.cloudflare.com/workers/configuration/cron-triggers/)
-- [Web Pushライブラリ](https://github.com/block65/webcrypto-web-push)
+- SideStore は署名し直すときに App Group の ID を書き換えます。アプリとウィジェットは、実行時に実際の ID を探して使います（`ios/App/App/SharedGroup.swift`）。
+- Web 版とアプリ版はデータが別です。設定の「書き出す」「読み込む」で移します。
+- アプリ版は1日1回、「ファイル」→ PackCalendar にバックアップを保存します（7日分）。

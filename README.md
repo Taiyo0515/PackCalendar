@@ -1,68 +1,37 @@
 # PackCalendar
 
-予定とバッグを選ぶと、今いる場所から移す必要がある持ち物だけを表示するカレンダーです。
+予定にバッグを付けておくと、次の外出で「どこから何を入れるか」だけが分かるカレンダーです。
 
-[公開サイト](https://taiyo0515.github.io/PackCalendar/) / [リポジトリ](https://github.com/Taiyo0515/PackCalendar)
+[公開サイト](https://taiyo0515.github.io/PackCalendar/) / 設計・仕様：[docs/v2](docs/v2/README.md) / 公開と配布：[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
 
 ## 使い方
 
-1. 持ち物タブでバッグと持ち物を登録します。写真は任意です。バッグを指定して登録すると、現在位置と基本セットが同時に設定されます。
-2. ホームで予定名・日時・バッグを登録します。終了時刻は任意。終日や毎週複数曜日にも対応します。
-3. 準備カードで48時間以内の次の出発に必要な移し替えを確認します。予定がない日は「今から準備」からバッグを選べます。
-
-予定開始時刻を過ぎると準備済みとみなして記録します。実際の移動を検知する機能ではありません。閉じていた間の記録は次の起動時に反映します。早めにチェックする、履歴から取り消す、「忘れた」で不明に戻す、バッグを空にする、といった修正もできます。自動記録は設定で停止できます。
-
-バッグ中身では、現在入っている物・足りない物・場所別の外にある物をまとめて操作します。ピンは基本セット、移動ボタンは現在位置を変更します。「身につける」はどのバッグでも準備済みとして扱います。
-
-## 保存と移行
-
-記録と写真は端末内のIndexedDBに保存します。写真は長辺240pxに縮小します。旧版のlocalStorageは初回に移行し、元データを残します。旧バックアップも読み込めます。月次繰り返しを維持し、複数タグは主カテゴリとメモに変換します。
-
-設定の「書き出す」で写真を含むJSONを保存できます。ブラウザのデータ消去・端末交換に備えて利用してください。タブ間の変更は反映し、古い内容による上書きを拒否します。通常の予定・写真をサーバーへ自動同期する機能はありません。
-
-## 通知とiPhone版
-
-Web版は設定で通知を有効にして接続します。通知サーバーURLは入力済み。所有者用の招待コードはローカルの `worker/.dev.vars.json` の `INVITATION_CODE` です。このファイルをGitに含めません。秘密鍵は画面に入力しません。
-
-iPhoneのWeb通知はSafariからホーム画面に追加したアプリで接続します。サーバーへ送るのは時刻・通知文面・購読情報です。写真や持ち物一覧そのものは送信しません。予約は14日先まで。予定の変更後はアプリをオンラインで開いて反映します。
-
-Capacitor版はローカル通知とFilesから開ける自動バックアップを利用します。CodemagicとGitHub Actionsに未署名IPAのビルド設定があります。[配布手順](docs/DEPLOYMENT.md)を参照してください。
+1. **持ち物**タブでバッグと持ち物を登録します。持ち物の場所にバッグを選ぶと、そのバッグの「いつも入れる物」にもなります。
+2. **カレンダー**で予定を入れ、バッグを選びます。
+3. 48時間以内に準備があると、カレンダーの上に移す物だけが出ます。タップするとバッグの中身を出し入れできます。
+4. 予定の時刻を過ぎると、準備は済んだものとして記録されます。
 
 ## 開発
 
-Node.js 22.12以上。
+Node.js 22.12 以上。
 
 ```sh
 npm ci
-npm run dev
+npm run dev            # http://127.0.0.1:4173/
+npm test               # 単体テスト（core・保存・通知 Worker）
+npm run build          # dist/ に本番ビルド
+npm run test:browser   # Playwright（初回は npx playwright install）
+npx tsx scripts/screens.ts   # 画面のスクリーンショット（test-results/screens）
 ```
 
-開発URLは `http://127.0.0.1:4173/`。Windowsでは依存関係の導入後に `start.bat` でも起動できます。
+| 場所 | 内容 |
+|---|---|
+| `src/core` | 日付・祝日・繰り返し・準備・通知文・ウィジェットのデータ（純粋関数） |
+| `src/platform` | IndexedDB、写真、Web Push、iOS（通知・バックアップ・ウィジェット連携） |
+| `src/ui` | 画面 |
+| `worker` | 通知用 Cloudflare Worker |
+| `ios` | Capacitor の iOS プロジェクト、ウィジェット（`ios/App/PackWidget`） |
+| `scripts/ios` | ウィジェットのターゲット追加とビルド（GitHub Actions の macOS で実行） |
+| `tests` | 単体テスト（`unit`）、画面のテスト（`e2e`） |
 
-```sh
-npm run build
-node scripts/serve-build.mjs
-```
-
-`http://127.0.0.1:4176/PackCalendar/` で公開時のサブパスを確認できます。配布対象は **dist/**。ソースindex.htmlの直接起動には対応しません。URL・ポート・ブラウザを変えると保存先が変わります。
-
-```sh
-npm test
-npm run check:worker
-npx playwright install
-npm run test:browser
-```
-
-## 構成
-
-| 場所                                             | 内容                                                |
-| ------------------------------------------------ | --------------------------------------------------- |
-| src/core                                         | PackPlan・Container・Move、繰り返し、移行、通知予定 |
-| src/platform                                     | IndexedDB、写真、Web Push、iOS通知・バックアップ    |
-| src/ui                                           | React画面と共通部品                                 |
-| worker                                           | Cloudflare Worker・D1・Cron                         |
-| ios / codemagic.yaml                             | iOSプロジェクトとビルド                             |
-| tests/v2 / tests/e2e                             | 現行版の検証                                        |
-| src/legacy / tests/core.test.mjs / tests/browser | 旧版互換処理と改修前の検証資料                      |
-
-[現行仕様](docs/SPECIFICATION.md)、[決定ログ](決定ログ.md)、[評価との対応](IMPLEMENTATION.md)、[検証結果](TESTING.md)。思想・当初仕様・サイト評価・設計レビューはrootに保持しています。
+思想は `思想.txt`、判断の履歴は `決定ログ.md` にあります。以前の資料は root と `docs/archive` に残しています。

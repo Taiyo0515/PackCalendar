@@ -1,25 +1,39 @@
 name: Build iOS IPA
 on:
+  push:
+    tags: ["ios-v*"]
   workflow_dispatch:
 jobs:
   build:
     runs-on: macos-latest
     timeout-minutes: 45
     permissions:
-      contents: read
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - run: bash scripts/build-ios.sh
+      - run: npm ci
+      - run: npm run build
+        env:
+          VITE_PUSH_URL: ${{ vars.VITE_PUSH_URL }}
+      - run: npx cap sync ios
+      - run: sudo gem install xcodeproj --no-document
+      - run: ruby scripts/ios/add_widget_target.rb
+      - run: bash scripts/ios/build.sh
       - uses: actions/upload-artifact@v4
         with:
-          name: PackCalendar-unsigned-ipa
-          path: build/ios/PackCalendar-unsigned.ipa
+          name: PackCalendar-ipa
+          path: build/ios/PackCalendar-*.ipa*
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: ios-build-log
+          name: xcodebuild-log
           path: build/ios/xcodebuild.log
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/ios-v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" build/ios/PackCalendar-*.ipa build/ios/PackCalendar-*.ipa.sha256 --title "$GITHUB_REF_NAME" --notes "SideStore 用の未署名 IPA（ウィジェット入り）"

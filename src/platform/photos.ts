@@ -1,19 +1,6 @@
-export interface PhotoRecord {
-  id: string;
-  blob: Blob;
-}
 export async function thumbnail(file: Blob): Promise<Blob> {
-  if (
-    ![
-      "image/jpeg",
-      "image/png",
-      "image/webp",
-      "image/heic",
-      "image/heif",
-    ].includes(file.type) ||
-    file.size > 25000000
-  )
-    throw new Error("25MB以下の写真を選んでください。");
+  if ((file.type && !file.type.startsWith("image/")) || file.size > 25000000)
+    throw new Error("25MB以下の写真を選んでください");
   const url = URL.createObjectURL(file);
   try {
     const image = new Image();
@@ -33,14 +20,14 @@ export async function thumbnail(file: Blob): Promise<Blob> {
     return await new Promise<Blob>((resolve, reject) =>
       canvas.toBlob(
         (b) =>
-          b ? resolve(b) : reject(new Error("写真を保存できませんでした。")),
+          b ? resolve(b) : reject(new Error("写真を保存できませんでした")),
         "image/jpeg",
         0.82,
       ),
     );
   } catch {
     throw new Error(
-      "写真を読み込めませんでした。JPEG・PNGの写真で試してください。",
+      "写真を読み込めませんでした",
     );
   } finally {
     URL.revokeObjectURL(url);
@@ -50,7 +37,7 @@ export function fromDataURL(data: string): Blob {
   const match =
     /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/]+=*)$/.exec(data);
   if (!match || data.length > 2000000)
-    throw new Error("バックアップの写真形式が不正です。");
+    throw new Error("バックアップの写真が壊れています");
   const raw = atob(match[2]);
   return new Blob([Uint8Array.from(raw, (c) => c.charCodeAt(0))], {
     type: match[1],

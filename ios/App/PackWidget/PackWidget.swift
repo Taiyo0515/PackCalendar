@@ -27,7 +27,7 @@ struct Snapshot: Decodable {
     let holidays: [String: String]
 
     static func load() -> Snapshot? {
-        guard let url = SharedGroup.fileURL(), let data = try? Data(contentsOf: url) else { return nil }
+        guard let data = SharedGroup.read() else { return nil }
         return try? JSONDecoder().decode(Snapshot.self, from: data)
     }
 }

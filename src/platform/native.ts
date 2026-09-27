@@ -5,8 +5,9 @@ import type { Notice } from "../core/schedule";
 import type { Theme } from "../core/model";
 
 interface PackBridge {
-  saveWidget(o: { json: string }): Promise<void>;
+  saveWidget(o: { json: string }): Promise<{ groups: string[] }>;
   setAppearance(o: { mode: Theme }): Promise<void>;
+  widgetStatus(): Promise<{ candidates: string[]; readable: boolean }>;
 }
 const bridge = registerPlugin<PackBridge>("PackBridge");
 
@@ -35,8 +36,24 @@ export async function scheduleLocal(list: Notice[]) {
   lastSchedule = key;
 }
 
+/** Last widget write result, shown in Settings only when something is wrong. */
+export let widgetError: string | null = null;
 export async function saveWidget(json: string) {
-  await bridge.saveWidget({ json }).catch(() => undefined);
+  try {
+    await bridge.saveWidget({ json });
+    widgetError = null;
+  } catch (e) {
+    widgetError = e instanceof Error ? e.message : String(e);
+  }
+}
+export async function widgetProblem(): Promise<string | null> {
+  if (widgetError) return widgetError;
+  try {
+    const s = await bridge.widgetStatus();
+    return s.readable ? null : `ウィジェットのデータが見つかりません（${s.candidates.join(", ")}）`;
+  } catch (e) {
+    return e instanceof Error ? e.message : String(e);
+  }
 }
 export async function setAppearance(mode: Theme) {
   await bridge.setAppearance({ mode }).catch(() => undefined);

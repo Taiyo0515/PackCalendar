@@ -21,6 +21,13 @@ export function SettingsScreen() {
   const [busy, setBusy] = useState(false);
   const [wipe, setWipe] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [widget, setWidget] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isNative) return;
+    const t = setTimeout(async () => setWidget(await (await import("../platform/native")).widgetProblem()), 1500);
+    return () => clearTimeout(t);
+  }, [state]);
 
   useEffect(() => {
     if (isNative) return setConnected(true);
@@ -118,6 +125,7 @@ export function SettingsScreen() {
               </div>
             )}
           </div>
+          {widget && <p className="error">{widget}</p>}
 
           <div className="section">カレンダー</div>
           <div className="group plain">

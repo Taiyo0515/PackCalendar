@@ -10,6 +10,7 @@ public class PackBridgePlugin: CAPPlugin, CAPBridgedPlugin {
     public let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "saveWidget", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "setAppearance", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "widgetStatus", returnType: CAPPluginReturnPromise),
     ]
 
     @objc func saveWidget(_ call: CAPPluginCall) {
@@ -17,17 +18,18 @@ public class PackBridgePlugin: CAPPlugin, CAPBridgedPlugin {
             call.reject("json is required")
             return
         }
-        guard let url = SharedGroup.fileURL() else {
-            call.reject("App Group is not available")
-            return
+        let written = SharedGroup.write(data)
+        WidgetCenter.shared.reloadAllTimelines()
+        if written.isEmpty {
+            call.reject("App Group に書き込めません: " + SharedGroup.candidates().joined(separator: ", "))
+        } else {
+            call.resolve(["groups": written])
         }
-        do {
-            try data.write(to: url, options: .atomic)
-            WidgetCenter.shared.reloadAllTimelines()
-            call.resolve()
-        } catch {
-            call.reject(error.localizedDescription)
-        }
+    }
+
+    @objc func widgetStatus(_ call: CAPPluginCall) {
+        let probe = SharedGroup.read() != nil
+        call.resolve(["candidates": SharedGroup.candidates(), "readable": probe])
     }
 
     @objc func setAppearance(_ call: CAPPluginCall) {

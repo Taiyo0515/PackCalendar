@@ -1,0 +1,25 @@
+name: Build iOS IPA
+on:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: bash scripts/build-ios.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PackCalendar-unsigned-ipa
+          path: build/ios/PackCalendar-unsigned.ipa
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-build-log
+          path: build/ios/xcodebuild.log

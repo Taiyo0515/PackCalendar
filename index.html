@@ -3,23 +3,19 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <meta name="theme-color" content="#263f36">
+    <meta name="theme-color" content="#125748">
     <meta name="description" content="予定に合わせて、必要な準備だけ。バッグと持ち物をつなぐ、あなたのカレンダー。">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="color-scheme" content="light">
-    <link rel="icon" href="./assets/icon.svg" type="image/svg+xml">
-    <link rel="apple-touch-icon" href="./assets/icon-192.png">
-    <link rel="manifest" href="./manifest.webmanifest">
-    <link rel="stylesheet" href="./src/styles.css">
+    <link rel="icon" href="/assets/icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/assets/icon-192.png">
+    <link rel="manifest" href="/manifest.webmanifest">
     <title>PackCalendar — 必要な準備だけ、ひと目で。</title>
   </head>
   <body>
     <div id="app"><p class="loading">PackCalendar を開いています…</p></div>
-    <dialog id="editor" aria-labelledby="dialog-title"></dialog>
-    <dialog id="confirmation" aria-labelledby="confirm-title"></dialog>
-    <div id="toast" role="status" aria-live="polite"></div>
     <noscript>PackCalendarを使うには、ブラウザのJavaScriptを有効にしてください。</noscript>
-    <script type="module" src="./src/app.js"></script>
+    <script type="module" src="./src/main.tsx"></script>
   </body>
 </html>

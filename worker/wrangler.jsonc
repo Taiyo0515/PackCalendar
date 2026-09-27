@@ -1,0 +1,20 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "packcalendar-push",
+  "main": "index.ts",
+  "compatibility_date": "2026-09-01",
+  "workers_dev": true,
+  "vars": {
+    "ALLOWED_ORIGIN": "https://taiyo0515.github.io",
+    "VAPID_SUBJECT": "https://github.com/Taiyo0515/PackCalendar",
+  },
+  "triggers": { "crons": ["* * * * *"] },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "packcalendar-push",
+      "database_id": "1d1da614-4674-4ce1-ac1e-05590e16a48c",
+    },
+  ],
+  "observability": { "enabled": false },
+}

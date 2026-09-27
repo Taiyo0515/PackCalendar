@@ -1,0 +1,17 @@
+node_modules/
+release/
+test-results/
+*.log
+.DS_Store
+PackCalendar-pages.zip
+dist/
+playwright-report/
+.wrangler/
+.env*
+!.env.example
+.dev.vars*
+ios/App/App/public/
+ios/App/App/capacitor.config.json
+ios/App/CapApp-SPM/.build/
+build/
+*.ipa

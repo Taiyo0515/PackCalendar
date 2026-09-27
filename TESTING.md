@@ -36,3 +36,13 @@ node scripts/verify-usability.mjs
 旧版コア16/16、旧ブラウザ42/44。WebKitのカテゴリ編集クリックとFirefoxページ生成でタイムアウト。旧版結果は新版の合格数に含めない。
 
 環境のnpm PowerShellラッパーが壊れているため、検証にはVolta配下のnpm-cli.jsをNodeから呼び出した。Browser runtimeは接続先0件だったため、導入済みPlaywrightで代替した。PC全体のnpm設定は変更していない。
+
+## 公開確認と配布物
+
+- 最終コード: `f14a28ed323fbac2b7f92a83e05bd165ed5af7a9`。
+- Pagesの最終CI: [36299630609](https://github.com/Taiyo0515/PackCalendar/actions/runs/36299630609)、成功。
+- iOSの最終ビルド: [36299646228](https://github.com/Taiyo0515/PackCalendar/actions/runs/36299646228)、成功。iOS 15以上、2.0.0 (2)。
+- [公開IPA](https://github.com/Taiyo0515/PackCalendar/releases/tag/ios-v2.0.0)は未署名のプレビュー。SHA-256も添付。実機導入済みという意味ではない。
+- IPA内の実行ファイル・Privacy Manifest・Files共有設定を検査。公開JSとIPAのWeb資材に秘密鍵・招待コードが含まれていないことを照合した。
+- 公開URLで3タブ、通知URLの初期値、オフライン再読込、JavaScriptエラーなしを確認。最終コードでは3タブ同時起動も成功。
+- 最終の復旧・通知停止処理の補強後に、コア32/32、Chromium 7/7を再検証。直前の4構成28/28と合わせて確認した。

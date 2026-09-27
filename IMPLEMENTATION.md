@@ -48,3 +48,5 @@
 - 資料: rootの原資料を保持し、docs/SPECIFICATION.md・決定ログ.md・TESTING.md・docs/DEPLOYMENT.mdに現行実装と検証範囲を分けて記載。
 
 チェックは実装と必要設定の用意を表す。実機の通知到着、撮影、SideStore再署名など、未実施の外部確認を合格扱いにしない。
+
+最終コードのPages配置とmacOSビルドが成功し、未署名IPAを `ios-v2.0.0` のプレビューリリースへ配置した。詳細な実行結果と実機で残る確認はTESTING.mdに記載。

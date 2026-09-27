@@ -41,6 +41,8 @@ macOS/Xcodeで実機用appを未署名ビルドし、Payloadに入れてIPA化�
 
 ## SideStoreと実機確認
 
+[ビルド済みIPAとチェックサム](https://github.com/Taiyo0515/PackCalendar/releases/tag/ios-v2.0.0)を公開しています。未署名のプレビューです。
+
 SideStore本体の導入・ペアリングは[公式手順](https://docs.sidestore.io/)に従う。IPAをiPhoneへ保存し、SideStoreから追加して自分のApple IDで署名する。再署名の期限・更新はSideStoreの表示に従う。PackCalendarの通知を許可する。
 
 確認項目: 撮影・写真再読込、アプリを閉じた状態の通知、時刻変更・削除後の通知、Filesでの自動バックアップ、写真付き復元、日別7世代保持、再署名後のデータ保持。Web版とネイティブ版は別の保存領域で、JSON書き出し・読み込みで移す。

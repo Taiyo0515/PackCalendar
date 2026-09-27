@@ -33,7 +33,8 @@ const key = z
   .regex(/^[a-zA-Z0-9_-]+$/)
   .max(100);
 const title = z.string().trim().min(1).max(200);
-const memo = z.string().max(10000);
+// New input is limited to 10,000 chars by the UI; old tag annotations may be longer.
+const memo = z.string().max(2100000);
 export const daySchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -210,7 +211,7 @@ export const stateSchema = z
     items: z.array(itemSchema).max(10000),
     events: z.array(eventSchema).max(10000),
     overrides: z.array(overrideSchema).max(10000),
-    categories: z.array(categorySchema).max(1000),
+    categories: z.array(categorySchema).max(10000),
     rules: z.array(ruleSchema).max(100),
     moves: z.array(moveSchema).max(10000),
     processed: z.array(z.string().max(240)).max(50000),

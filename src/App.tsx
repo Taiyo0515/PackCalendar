@@ -12,7 +12,7 @@ import {
 import * as C from "./core/domain";
 import type { Bag, Item, Occurrence, State } from "./core/model";
 import { buildSchedule } from "./core/notifications";
-import { Repository } from "./platform/repository";
+import { Repository, SaveConflictError } from "./platform/repository";
 import { getScheduler, isNative, nativeBackup } from "./platform";
 import type { Commit } from "./ui/types";
 import { Home } from "./ui/Home";
@@ -135,8 +135,15 @@ export default function App() {
       .load()
       .then(async (loaded) => {
         const next = structuredClone(loaded);
-        const moves = C.advanceAutomatic(next);
-        const saved = await repository.save(next);
+        let moves = C.advanceAutomatic(next),
+          saved: State;
+        try {
+          saved = await repository.save(next);
+        } catch (error) {
+          if (!(error instanceof SaveConflictError)) throw error;
+          saved = await repository.load();
+          moves = 0;
+        }
         if (!alive) return;
         accept(saved);
         if (moves)
@@ -190,10 +197,21 @@ export default function App() {
     if (!state?.settings.onboarded) return;
     const schedule = buildSchedule(state),
       encoded = JSON.stringify(schedule);
+    if (!state.settings.reminders.enabled) {
+      lastSchedule.current = "";
+      setSyncStatus("");
+    }
     if (state.settings.reminders.enabled && encoded !== lastSchedule.current) {
       syncQueue.current = syncQueue.current.then(async () => {
         try {
-          await (await getScheduler(repository)).sync(schedule);
+          if (!current.current?.settings.reminders.enabled) return;
+          const scheduler = await getScheduler(repository);
+          await scheduler.sync(schedule);
+          if (!current.current?.settings.reminders.enabled) {
+            await scheduler.disable();
+            lastSchedule.current = "";
+            return;
+          }
           lastSchedule.current = encoded;
           setSyncStatus(`通知予定：${schedule.length}件`);
         } catch (e) {
@@ -277,10 +295,10 @@ export default function App() {
         <button
           className="button secondary"
           onClick={() =>
-            download(
-              repository.rescueLegacy() ?? JSON.stringify(current.current),
-              "PackCalendar-rescue.json",
-            )
+            void repository
+              .rescueRaw()
+              .then((raw) => download(raw, "PackCalendar-rescue.json"))
+              .catch((e) => setFailure((e as Error).message))
           }
         >
           <Download size={18} />

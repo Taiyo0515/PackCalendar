@@ -129,3 +129,33 @@ test("壊れた旧保存は空データに置き換えず復旧用に残す", as
     await db.delete();
   }
 });
+
+test("上限の旧メモと複数カテゴリを欠落なく移行する", async () => {
+  const input = old();
+  input.events[0].memo = "あ".repeat(10000);
+  input.events[0].tagIds = input.tags.map((t) => t.id);
+  const { state } = await migrateLegacy(input, identity);
+  assert(state.events[0].memo.startsWith(input.events[0].memo));
+  assert(state.events[0].memo.includes(input.tags[1].name));
+});
+test("壊れたIndexedDBの状態も写真と一緒に救出できる", async () => {
+  const db = new Repository(`test-${C.id()}`, null, identity);
+  try {
+    const s = await db.load();
+    const photo = {
+      id: C.id(),
+      blob: new Blob(["rescue"], { type: "image/jpeg" }),
+    };
+    await db.photos.put(photo);
+    await db.states.put({
+      id: "current",
+      value: { ...s, version: 999 } as unknown as C.State,
+    });
+    await assert.rejects(db.load());
+    const raw = JSON.parse(await db.rescueRaw());
+    assert.equal(raw.data.version, 999);
+    assert(raw.photos[photo.id].startsWith("data:image/jpeg;base64,"));
+  } finally {
+    await db.delete();
+  }
+});

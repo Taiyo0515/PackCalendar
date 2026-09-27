@@ -4,12 +4,12 @@
 
 ## 確認済み
 
-- TypeScript・Vite本番ビルド、Workerの型検査。
-- コア・移行・保存・通知APIの30テスト合格。通知WorkerはSQLite上で認可・CORS・全置換・暗号化配信・再試行・失効削除を検証。
-- Chromium / Androidの各7シナリオ合格。WebKitはBlob保存互換対応後、写真登録・写真付き復元・320pxとaxe・サーバー停止後のオフライン起動を再検証して合格。4ブラウザ構成の最終一括実行は実施中。
+- TypeScript・Vite本番ビルド、Workerの型検査。GitHub Actionsでもコア・Chromium検証を通過し、Pages配置に成功（初回run 36299336441）。
+- コア・移行・保存・通知APIの32テスト合格。通知WorkerはSQLite上で認可・CORS・全置換・暗号化配信・再試行・失効削除を検証。
+- Chromium / Androidの各7シナリオ合格。WebKitはBlob保存互換対応後、写真登録・写真付き復元・320pxとaxe・サーバー停止後のオフライン起動を再検証して合格。Chromium・Android・WebKit・Firefoxの最終一括実行は28/28合格（6.0分）。
 - 複数選択、2バッグ移し替え、デスクトップドラッグ、Escape、200%表示を `scripts/verify-usability.mjs` で確認。
 - npm audit: 本番依存・開発依存とも既知の脆弱性0件。
-- Capacitor iOS生成・同期、Camera/Filesystem/LocalNotificationsのSPM参照。
+- Capacitor iOS生成・同期、Camera/Filesystem/LocalNotificationsのSPM参照。macOS上のGitHub Actionsで未署名IPAのビルド成功（初回run 36299356229）。
 - 公開Cloudflare Worker: config 200、端末登録200、予約全置換200、未認証401、端末削除200。検証端末は削除済み。
 
 ## 実行方法
@@ -27,7 +27,7 @@ node scripts/verify-usability.mjs
 
 ## 実機・外部サービスで残る確認
 
-- iOSの実ビルド結果、SideStoreへの署名・インストール、実機撮影・ローカル通知・Filesバックアップ。
+- SideStoreへの署名・インストール、実機撮影・ローカル通知・Filesバックアップ。
 - 実際のPush購読先への端末通知の到着。APIの公開確認と配信ユニットテストは到着の実機確認ではない。
 - Codemagicアカウントでのリポジトリ選択と初回ビルド。
 

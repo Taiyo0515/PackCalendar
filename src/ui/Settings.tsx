@@ -304,6 +304,9 @@ export function Settings({
                   onClick={() =>
                     void run(async () => {
                       await (await getScheduler(repo)).disable();
+                      await commit((s) => {
+                        s.settings.reminders.enabled = false;
+                      }, "通知を停止しました");
                       setConnected(false);
                       onMessage("通知先と送信予定を削除しました");
                     })

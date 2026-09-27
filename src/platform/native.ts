@@ -4,6 +4,9 @@ import type {
   NotificationScheduler,
   ScheduledNotification,
 } from "../core/notifications";
+void LocalNotifications.addListener("localNotificationActionPerformed", () => {
+  window.location.hash = "home";
+}).catch(() => {});
 export class NativeScheduler implements NotificationScheduler {
   async connected() {
     return (await LocalNotifications.checkPermissions()).display === "granted";
@@ -23,16 +26,14 @@ export class NativeScheduler implements NotificationScheduler {
       });
     if (schedule.length)
       await LocalNotifications.schedule({
-        notifications: schedule
-          .slice(0, 60)
-          .map((n, index) => ({
-            id: index + 1,
-            title: n.title,
-            body: n.body,
-            schedule: { at: new Date(n.at) },
-            extra: { url: n.url },
-            sound: "default",
-          })),
+        notifications: schedule.slice(0, 60).map((n, index) => ({
+          id: index + 1,
+          title: n.title,
+          body: n.body,
+          schedule: { at: new Date(n.at) },
+          extra: { url: n.url },
+          sound: "default",
+        })),
       });
   }
   async disable() {

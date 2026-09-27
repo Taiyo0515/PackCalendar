@@ -6,6 +6,13 @@ import { migrateLegacy } from "../core/migration";
 import { fromDataURL, thumbnail, toDataURL } from "./photos";
 import type { PhotoRecord } from "./photos";
 export type Backup = { state: State; photos: PhotoRecord[] };
+export class SaveConflictError extends Error {
+  constructor() {
+    super(
+      "別のタブで更新されました。最新の内容を確認してから、もう一度操作してください。",
+    );
+  }
+}
 export class Repository extends Dexie {
   states!: Table<{ id: string; value: State }, string>;
   photos!: Table<PhotoRecord, string>;
@@ -96,9 +103,7 @@ export class Repository extends Dexie {
       this.transaction("rw", this.states, this.photos, async () => {
         const current = await this.states.get("current");
         if (current && current.value.revision !== state.revision)
-          throw new Error(
-            "別のタブで更新されました。最新の内容を確認してから、もう一度操作してください。",
-          );
+          throw new SaveConflictError();
         if (records.length) await this.photos.bulkPut(records);
         for (const object of [...state.items, ...state.containers])
           if (object.imageId && !(await this.photos.get(object.imageId)))
@@ -197,5 +202,20 @@ export class Repository extends Dexie {
   }
   rescueLegacy() {
     return this.legacyStorage?.getItem(this.legacyKey) ?? null;
+  }
+  async rescueRaw() {
+    const row = await this.states.get("current");
+    if (!row) return this.rescueLegacy() ?? "{}";
+    const photos: Record<string, string> = {};
+    for (const photo of await this.photos.toArray())
+      photos[photo.id] = await toDataURL(photo.blob);
+    return JSON.stringify({
+      app: "PackCalendar",
+      schemaVersion: 2,
+      format: 2,
+      data: row.value,
+      photos,
+      legacyOriginal: this.rescueLegacy(),
+    });
   }
 }

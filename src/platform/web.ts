@@ -115,7 +115,7 @@ export class WebScheduler implements NotificationScheduler {
         "X-Device-Id": c.deviceId,
       },
     });
-    if (!response.ok && ![404, 410].includes(response.status))
+    if (!response.ok && ![401, 404, 410].includes(response.status))
       throw new Error(
         "通知の停止を送信できません。オンラインで再試行してください。",
       );

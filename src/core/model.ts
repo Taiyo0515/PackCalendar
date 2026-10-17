@@ -45,6 +45,8 @@ export const itemSchema = z.object({
   photoId: id.nullable(),
   at: id.nullable(),
   atTime: z.string().refine((s) => Number.isFinite(Date.parse(s))),
+  /** "Put it back home once the day's use is over." */
+  return: z.boolean().default(false),
 });
 export const planSchema = z.object({
   bagId: id.nullable(),

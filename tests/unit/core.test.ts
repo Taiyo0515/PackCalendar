@@ -215,6 +215,83 @@ test("same-title lookup returns the latest event", () => {
   assert.equal(lastWithTitle(s, " 大学 ")?.id, "x2");
 });
 
+test("return items are recorded into the bag at start and go home when the day's use ends", () => {
+  const s = world();
+  s.bags[0].itemIds.push("card");
+  s.items.push({ id: "card", name: "学生証", photoId: null, at: HOME, atTime: "2026-09-27T00:00:00.000Z", return: true });
+  s.events.push(ev("univ", "2026-09-28T09:00", "pack", { end: "2026-09-28T16:00" }));
+  s.cursor = T("2026-09-28T08:00").toISOString();
+  advance(s, T("2026-09-28T10:00"));
+  // The end time holds the bag: recorded at start, back home exactly at the event's end.
+  let card = s.items.find((i) => i.id === "card")!;
+  assert.equal(card.at, "pack");
+  assert.equal(advance(s, T("2026-09-28T15:30")), 0);
+  assert.equal(advance(s, T("2026-09-28T16:00")), 1);
+  card = s.items.find((i) => i.id === "card")!;
+  assert.equal(card.at, HOME);
+  assert.equal(s.items.find((i) => i.id === "pc")!.at, "pack");
+  // A manual move after the return is kept.
+  const manual = s.items.find((i) => i.id === "card")!;
+  manual.at = "mini";
+  manual.atTime = T("2026-09-28T18:00").toISOString();
+  assert.equal(advance(s, T("2026-09-28T19:00")), 0);
+  assert.equal(s.items.find((i) => i.id === "card")!.at, "mini");
+});
+
+test("auto off keeps return items wherever the user leaves them", () => {
+  const s = world();
+  s.bags[0].itemIds.push("card");
+  s.items.push({ id: "card", name: "学生証", photoId: null, at: HOME, atTime: "2026-09-27T00:00:00.000Z", return: true });
+  s.settings.auto = false;
+  s.events.push(ev("univ", "2026-09-28T09:00", "pack", { end: "2026-09-28T16:00" }));
+  s.cursor = T("2026-09-28T08:00").toISOString();
+  assert.equal(advance(s, T("2026-09-29T09:00")), 0);
+  assert.equal(s.items.find((i) => i.id === "card")!.at, HOME);
+  assert.equal(s.cursor, T("2026-09-29T09:00").toISOString());
+});
+
+test("events without an end return the bag only at the next midnight", () => {
+  const s = world();
+  s.bags[0].itemIds.push("card");
+  s.items.push({ id: "card", name: "学生証", photoId: null, at: HOME, atTime: "2026-09-27T00:00:00.000Z", return: true });
+  s.events.push(ev("univ", "2026-09-28T09:00", "pack"));
+  s.cursor = T("2026-09-28T08:00").toISOString();
+  advance(s, T("2026-09-28T10:00"));
+  assert.equal(s.items.find((i) => i.id === "card")!.at, "pack");
+  advance(s, T("2026-09-28T23:00"));
+  assert.equal(s.items.find((i) => i.id === "card")!.at, "pack");
+  advance(s, T("2026-09-29T00:01"));
+  assert.equal(s.items.find((i) => i.id === "card")!.at, HOME);
+});
+
+test("predictions count the pending return before later preps", () => {
+  const s = world();
+  s.bags[0].itemIds.push("card");
+  s.items.push({ id: "card", name: "学生証", photoId: null, at: HOME, atTime: "2026-09-27T00:00:00.000Z", return: true });
+  s.events.push(ev("univ", "2026-09-28T09:00", "pack", { end: "2026-09-28T16:00" }));
+  s.cursor = T("2026-09-28T08:00").toISOString();
+  advance(s, T("2026-09-28T10:00"));
+  // While the item is still recorded in the bag this morning, the next day's prep expects it at home again.
+  s.events.push(ev("univ2", "2026-09-29T09:00", "pack", { end: "2026-09-29T16:00" }));
+  const f = forecast(s, T("2026-09-28T12:00"));
+  const next = f.find((x) => x.unit.start.startsWith("2026-09-29"))!;
+  assert.deepEqual(next.lines.filter((l) => l.itemIds.includes("card")).map((l) => l.label), ["自宅から"]);
+});
+
+test("an all-day trip keeps the item until the middle of the night after the last day", () => {
+  const s = world();
+  s.bags[0].itemIds.push("card");
+  s.items.push({ id: "card", name: "学生証", photoId: null, at: HOME, atTime: "2026-09-27T00:00:00.000Z", return: true });
+  s.events.push(ev("trip", "2026-10-10T00:00", "pack", { allDay: true, end: "2026-10-13T00:00" }));
+  s.cursor = T("2026-10-09T08:00").toISOString();
+  advance(s, T("2026-10-10T20:00"));
+  assert.equal(s.items.find((i) => i.id === "card")!.at, "pack");
+  advance(s, T("2026-10-12T23:00"));
+  assert.equal(s.items.find((i) => i.id === "card")!.at, "pack");
+  advance(s, T("2026-10-13T09:00"));
+  assert.equal(s.items.find((i) => i.id === "card")!.at, HOME);
+});
+
 test("v2 state converts to v3", () => {
   const v2 = {
     version: 2,

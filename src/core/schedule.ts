@@ -1,9 +1,9 @@
 import { addDays, dayKey, hm, monthGrid, relativeDay, stamp, toTime } from "./date";
 import { visibleOnDay } from "./calendar";
 import { holidayName } from "./holidays";
-import { BAG_COLORS, NEUTRAL, WORN } from "./model";
+import { BAG_COLORS, NEUTRAL } from "./model";
 import type { State } from "./model";
-import { bagOf, linesOf, unitsBetween } from "./prep";
+import { applyMove, bagOf, linesOf, unitMoves, unitsBetween } from "./prep";
 import type { Line, Unit } from "./prep";
 
 export interface Forecast {
@@ -11,18 +11,20 @@ export interface Forecast {
   lines: Line[];
 }
 
-/** Walks upcoming preparations, assuming each is completed at its start. */
+/** Walks upcoming preparations, assuming each is completed at its start and return-type items go home at the day's end. */
 export function forecast(input: State, now: Date, days = 14): Forecast[] {
   const s = structuredClone(input);
   const until = new Date(now.getTime() + days * 86400000);
-  const nowStamp = stamp(now);
+  const nowStamp = stamp(now),
+    toStamp = stamp(until);
+  // Include past units so that an ongoing take-home item's return counts into later predictions.
+  const moves = unitMoves(unitsBetween(s, new Date(now.getTime() - 30 * 86400000), until));
   const out: Forecast[] = [];
-  for (const unit of unitsBetween(s, now, until)) {
-    if (unit.start <= nowStamp || toTime(unit.start) > until) continue;
-    out.push({ unit, lines: linesOf(s, unit) });
-    if (s.settings.auto)
-      for (const item of s.items)
-        if (unit.itemIds.includes(item.id) && item.at !== WORN) item.at = unit.bagId;
+  for (const e of moves) {
+    // Only the future is simulated: live positions already reflect everything before now.
+    if (e.t <= nowStamp || e.t >= toStamp) continue;
+    if (e.start && e.unit.start > nowStamp) out.push({ unit: e.unit, lines: linesOf(s, e.unit) });
+    if (s.settings.auto) applyMove(s, e, true);
   }
   return out;
 }

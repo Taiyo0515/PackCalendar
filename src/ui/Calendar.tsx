@@ -4,6 +4,7 @@ import { addDays, addMonths, dayKey, monthGrid, WEEKDAYS, weekday } from "../cor
 import { occurrences, endOf, visibleOccurrences } from "../core/calendar";
 import { holidayName } from "../core/holidays";
 import { bagOf, linesOf, nextUnit } from "../core/prep";
+import { forecast } from "../core/schedule";
 import { whenLabel } from "../core/schedule";
 import { CALENDARS, CALENDAR_NAMES, showsCalendar } from "../core/model";
 import type { CalendarId, Occurrence } from "../core/model";
@@ -122,7 +123,8 @@ function PrepCard({ unitKey }: { unitKey: string }) {
   const unit = nextUnit(state, now);
   if (!unit || unit.key !== unitKey) return null;
   const bag = bagOf(state, unit.bagId)!;
-  const lines = linesOf(state, unit);
+  // Predicted lines: a take-home item still recorded in the bag while today's use is on counts as back home by tomorrow.
+  const lines = forecast(state, now, 3).find((f) => f.unit.key === unit.key)?.lines ?? linesOf(state, unit);
   const shown = lines.length > 4 ? [...lines.slice(0, 3)] : lines;
   const rest = lines.slice(3).reduce((n, l) => n + l.names.length, 0);
   const when = whenLabel(unit.start, now);

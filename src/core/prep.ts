@@ -1,5 +1,5 @@
 import { addDays, dayKey, stamp, toTime } from "./date";
-import { occurrences } from "./calendar";
+import { endOf, occurrences } from "./calendar";
 import { HOME, WORN } from "./model";
 import type { Bag, Item, Occurrence, Plan, State } from "./model";
 
@@ -25,10 +25,24 @@ export interface Unit {
   key: string;
   bagId: string;
   start: string;
+  /** When this bag's use is over: the last event end, but at least the next midnight. */
+  until: string;
   title: string;
   events: Occurrence[];
   itemIds: string[];
   extra: string[];
+}
+
+/** Last event end of a unit; events without an end hold the bag until the next midnight. */
+function untilOf(events: Occurrence[]) {
+  const next = `${addDays(events[0].date, 1)}T00:00`;
+  let allEnded = true;
+  let maxEnd = "";
+  for (const o of events) {
+    if (!o.end) allEnded = false;
+    else if (endOf(o) > maxEnd) maxEnd = endOf(o);
+  }
+  return allEnded ? maxEnd : maxEnd > next ? maxEnd : next;
 }
 
 /** Consecutive same-bag occurrences on the same day form one preparation. */
@@ -42,13 +56,14 @@ export function unitsOf(s: State, list: Occurrence[]): Unit[] {
       continue;
     }
     if (!open || open.bagId !== bag.id || open.start.slice(0, 10) !== o.start.slice(0, 10)) {
-      open = { key: o.key, bagId: bag.id, start: o.start, title: o.title, events: [], itemIds: [], extra: [] };
+      open = { key: o.key, bagId: bag.id, start: o.start, until: "", title: o.title, events: [], itemIds: [], extra: [] };
       units.push(open);
     }
     open.events.push(o);
     open.itemIds = [...new Set([...open.itemIds, ...neededIds(s, o.plan)])];
     open.extra = [...new Set([...open.extra, ...o.plan.extra])];
   }
+  for (const u of units) u.until = untilOf(u.events);
   return units;
 }
 
@@ -117,31 +132,60 @@ export function moveItems(s: State, ids: string[], to: string | null, at = new D
     }
 }
 
-/** Records preparations whose start passed since the cursor. */
+/** Records preparations, and puts return-type items back home when the use is over. */
+export interface MoveEvent {
+  /** Time of the move (a unit's start or its end). */
+  t: string;
+  unit: Unit;
+  /** True when the unit starts (in), false when its use ends (return items go home). */
+  start: boolean;
+}
+
+/** Units in chronological order, each expanded into a start and an end move. */
+export function unitMoves(units: Unit[]): MoveEvent[] {
+  const moves: MoveEvent[] = [];
+  for (const u of units) {
+    moves.push({ t: u.start, unit: u, start: true });
+    moves.push({ t: u.until, unit: u, start: false });
+  }
+  return moves.sort(
+    (a, b) => a.t.localeCompare(b.t) || Number(a.start) - Number(b.start) || a.unit.key.localeCompare(b.unit.key),
+  );
+}
+
+/**
+ * Applies one move. Live recordings keep anything the user moved later untouched;
+ * in the simulated future the plan is taken as completed and overrides positions.
+ */
+export function applyMove(s: State, e: MoveEvent, simulated: boolean): number {
+  let moved = 0;
+  for (const item of s.items) {
+    if (!e.unit.itemIds.includes(item.id) || item.at === WORN) continue;
+    if (e.start) {
+      if (item.at === e.unit.bagId) continue;
+      if (!simulated && new Date(item.atTime) > new Date(e.t)) continue;
+    } else {
+      if (!item.return || item.at !== e.unit.bagId) continue;
+      if (!simulated && new Date(item.atTime) > new Date(e.t)) continue;
+    }
+    item.at = e.start ? e.unit.bagId : HOME;
+    item.atTime = e.t;
+    moved++;
+  }
+  return moved;
+}
+
+/** Records preparations whose start passed since the cursor, and ended-day returns. */
 export function advance(s: State, now = new Date()) {
   const cursor = new Date(s.cursor);
   if (!(now > cursor)) return 0;
-  let moved = 0;
-  if (s.settings.auto) {
-    const from = stamp(cursor),
-      to = stamp(now);
-    for (const u of unitsBetween(s, cursor, now)) {
-      if (!(u.start > from && u.start <= to)) continue;
-      const at = toTime(u.start);
-      for (const item of s.items)
-        if (
-          u.itemIds.includes(item.id) &&
-          item.at !== u.bagId &&
-          item.at !== WORN &&
-          new Date(item.atTime) <= at
-        ) {
-          item.at = u.bagId;
-          item.atTime = at.toISOString();
-          moved++;
-        }
-    }
-  }
   s.cursor = now.toISOString();
+  if (!s.settings.auto) return 0;
+  const from = stamp(cursor),
+    to = stamp(now);
+  let moved = 0;
+  for (const e of unitMoves(unitsBetween(s, cursor, now)))
+    if (e.t > from && e.t <= to) moved += applyMove(s, e, false);
   return moved;
 }
 

@@ -973,13 +973,19 @@ button.row:active,
   color: var(--sub);
   margin-top: 24px;
 }
+.hint {
+  font-size: 13px;
+  color: var(--sub);
+  line-height: 1.7;
+  margin: 16px 0 0;
+  white-space: pre-wrap;
+}
 .error {
   color: var(--red);
   font-size: 14px;
   margin: 8px 4px 0;
 }
-.code-input {
-  flex: 1;
+.code-input {  flex: 1;
   height: 36px;
   border-radius: 8px;
   border: 0;

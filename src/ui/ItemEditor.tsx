@@ -6,7 +6,7 @@ import { thumbnail } from "../platform/photos";
 import { toPhoto } from "../platform/store";
 import type { Photo } from "../platform/store";
 import { useApp } from "./App";
-import { BagChip, Sheet } from "./kit";
+import { BagChip, Sheet, Switch } from "./kit";
 
 export function ItemEditor({ itemId }: { itemId: string | null }) {
   const { state, photos, commit, close, say } = useApp();
@@ -16,6 +16,7 @@ export function ItemEditor({ itemId }: { itemId: string | null }) {
   const [pins, setPins] = useState<string[]>(() => state.bags.filter((b) => item && b.itemIds.includes(item.id)).map((b) => b.id));
   const [photo, setPhoto] = useState<{ id: string; blob: Blob; url: string } | null>(null);
   const [photoId, setPhotoId] = useState<string | null>(item?.photoId ?? null);
+  const [ret, setRet] = useState(item?.return ?? false);
   const pinsTouched = useRef(false);
   const nameRef = useRef<HTMLInputElement>(null);
 
@@ -34,6 +35,8 @@ export function ItemEditor({ itemId }: { itemId: string | null }) {
     const n = name.trim();
     if (!n) return;
     const id = item?.id ?? newId();
+    // A take-home item normally lives at home, so picking a bag together with the switch keeps it home.
+    const place = ret && state.bags.some((b) => b.id === at) ? HOME : at;
     const list: Photo[] = [];
     const commitWith = (p: Photo | null) => {
       if (p) list.push(p);
@@ -44,11 +47,12 @@ export function ItemEditor({ itemId }: { itemId: string | null }) {
           if (existing) {
             existing.name = n;
             existing.photoId = photoId;
-            if (existing.at !== at) {
-              existing.at = at;
+            existing.return = ret;
+            if (existing.at !== place) {
+              existing.at = place;
               existing.atTime = nowIso;
             }
-          } else s.items.push({ id, name: n, photoId, at, atTime: nowIso });
+          } else s.items.push({ id, name: n, photoId, at: place, atTime: nowIso, return: ret });
           for (const b of s.bags) {
             const has = b.itemIds.includes(id);
             if (pins.includes(b.id) && !has) b.itemIds.push(id);
@@ -147,6 +151,22 @@ export function ItemEditor({ itemId }: { itemId: string | null }) {
             </div>
           </>
         )}
+        <div className="group plain" style={{ marginTop: 20 }}>
+          <div className="row">
+            <span className="main-text">使ったら自宅に戻す</span>
+            <Switch
+              label="使ったら自宅に戻す"
+              on={ret}
+              onChange={(v) => {
+                setRet(v);
+                if (v && state.bags.some((b) => b.id === at)) {
+                  setAt(HOME);
+                  nameRef.current?.blur();
+                }
+              }}
+            />
+          </div>
+        </div>
         {photoId && (
           <div className="buttons">
             <button

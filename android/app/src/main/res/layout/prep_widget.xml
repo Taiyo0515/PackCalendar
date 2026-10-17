@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="14dp"
+    android:background="@drawable/widget_bg">
+
+    <TextView
+        android:id="@+id/when"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="12sp"
+        android:textStyle="bold"
+        android:textColor="#8E8E93"
+        android:singleLine="true"
+        android:text="" />
+
+    <TextView
+        android:id="@+id/bag"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="17sp"
+        android:textStyle="bold"
+        android:textColor="#111111"
+        android:ellipsize="end"
+        android:singleLine="true"
+        android:text="" />
+
+    <TextView
+        android:id="@+id/line1label"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:textSize="11sp"
+        android:textColor="#8E8E93"
+        android:visibility="gone"
+        android:text="" />
+
+    <TextView
+        android:id="@+id/line1name"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:textColor="#111111"
+        android:ellipsize="end"
+        android:singleLine="true"
+        android:visibility="gone"
+        android:text="" />
+
+    <TextView
+        android:id="@+id/line2label"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:textSize="11sp"
+        android:textColor="#8E8E93"
+        android:visibility="gone"
+        android:text="" />
+
+    <TextView
+        android:id="@+id/line2name"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:textColor="#111111"
+        android:ellipsize="end"
+        android:singleLine="true"
+        android:visibility="gone"
+        android:text="" />
+
+    <TextView
+        android:id="@+id/okText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_vertical"
+        android:textSize="15sp"
+        android:textStyle="bold"
+        android:textColor="#1E9E6A"
+        android:visibility="gone"
+        android:text="" />
+
+    <TextView
+        android:id="@+id/empty"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:textSize="13sp"
+        android:textColor="#8E8E93"
+        android:gravity="center"
+        android:visibility="gone"
+        android:text="" />
+</LinearLayout>

@@ -56,3 +56,29 @@ Windows では Xcode を動かせないため、iOS のビルドは GitHub Actio
 - SideStore は署名し直すときに App Group の ID を書き換えます。アプリとウィジェットは、実行時に実際の ID を探して使います（`ios/App/App/SharedGroup.swift`）。
 - Web 版とアプリ版はデータが別です。設定の「書き出す」「読み込む」で移します。
 - アプリ版は1日1回、「ファイル」→ PackCalendar にバックアップを保存します（7日分）。
+
+## Android アプリ（GitHub Actions ＋ 署名付き APK）
+
+### ビルド
+
+- 手動：GitHub の Actions → **Build Android APK** → Run workflow。成果物（Artifacts）の `PackCalendar-apk` に APK が入ります。
+- リリース：`android-v3.2.0` のようなタグを push すると、GitHub Releases に APK（署名済み）と SHA-256 を添付します。
+
+```sh
+git tag android-v3.2.0
+git push origin android-v3.2.0
+```
+
+ビルドの流れ（`.github/workflows/android.yml`）：
+
+1. `npm run build` → `npx cap sync android`
+2. `./gradlew assembleRelease`：`android/app/packcalendar.keystore`（パスワードは `build.gradle` に記載の個人利用用）で署名する
+
+Windows に Android SDK が無くても CI 上でビルドが完結します。
+
+### インストール
+
+1. リリースの APK を Android 端末で開き、「このアプリをインストール」を許可する（Play 保護の確認に同意）。
+2. PackCalendar を開き、通知を許可する。
+3. ホーム画面を長押し → ウィジェット → PackCalendar の「準備」（小）と「カレンダー」（大）を追加する。
+4. アップデートは同じ方法。署名鍵が同じなので上書きインストールでデータを保持できる（iOS の SideStore と違い再署名はない）。

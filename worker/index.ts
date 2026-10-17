@@ -15,7 +15,13 @@ const key = z.string().regex(/^[A-Za-z0-9_-]+$/);
 
 /** Accepted origins: the web app plus the Capacitor shell (iOS / Android). */
 function allowedOrigin(origin: string | null, env: Env) {
-  return origin === env.ALLOWED_ORIGIN || origin === "capacitor://localhost" || origin === "ionic://localhost";
+  return (
+    origin === env.ALLOWED_ORIGIN ||
+    origin === "capacitor://localhost" ||
+    origin === "ionic://localhost" ||
+    origin === "http://localhost" ||
+    origin === "https://localhost"
+  );
 }
 
 const IMPORT_HEADERS: Record<string, string> = {

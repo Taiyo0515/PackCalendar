@@ -1,0 +1,9 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">PackCalendar</string>
+    <string name="title_activity_main">PackCalendar</string>
+    <string name="package_name">io.github.taiyo0515.packcalendar</string>
+    <string name="custom_url_scheme">io.github.taiyo0515.packcalendar</string>
+    <string name="prep_widget_desc">次の準備で移す持ち物</string>
+    <string name="calendar_widget_desc">今月の予定</string>
+</resources>

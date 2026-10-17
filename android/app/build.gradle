@@ -1,6 +1,6 @@
 apply plugin: 'com.android.application'
 
-def packageJson = new groovy.json.JsonSlurper().parse(file('../package.json'))
+def packageJson = new groovy.json.JsonSlurper().parse(file('../../package.json'))
 
 android {
     namespace = "io.github.taiyo0515.packcalendar"

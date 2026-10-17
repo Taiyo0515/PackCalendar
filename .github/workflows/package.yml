@@ -85,6 +85,11 @@ jobs:
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dist/PackCalendar-* \
-          --prerelease --title "$GITHUB_REF_NAME" \
-          --notes "開発中のビルドです。Android は APK を端末で開いて、iPhone は SideStore で ipa を読み込んでください。"
+        run: |
+          set -e
+          ls -la dist
+          FILES="$(find dist -type f -name 'PackCalendar-*')"
+          test -n "$FILES"
+          gh release create "$GITHUB_REF_NAME" $FILES \
+            --prerelease --title "$GITHUB_REF_NAME" \
+            --notes "開発中のビルドです。Android は APK を端末で開いて、iPhone は SideStore で ipa を読み込んでください。"

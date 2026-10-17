@@ -47,7 +47,7 @@ public class PrepWidgetProvider extends AppWidgetProvider {
 
     static RemoteViews build(Context context, WidgetData.Snapshot snapshot, boolean dark) {
         RemoteViews rv = new RemoteViews(context.getPackageName(), R.layout.prep_widget);
-        rv.setBackgroundResource(R.id.root, dark ? R.drawable.widget_bg_dark : R.drawable.widget_bg);
+        rv.setInt(R.id.root, "setBackgroundResource", dark ? R.drawable.widget_bg_dark : R.drawable.widget_bg);
 
         int sub = color("#8E8E93");
         int text = color(dark ? "#F2F2F2" : "#111111");

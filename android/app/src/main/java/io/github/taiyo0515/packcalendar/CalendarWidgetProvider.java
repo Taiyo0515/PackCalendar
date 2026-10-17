@@ -41,7 +41,7 @@ public class CalendarWidgetProvider extends AppWidgetProvider {
             int hDp = o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 250);
             Bitmap bmp = draw(snapshot, dark, density, Math.round(wDp * density), Math.round(hDp * density));
             RemoteViews rv = new RemoteViews(context.getPackageName(), R.layout.calendar_widget);
-            rv.setBackgroundResource(R.id.root, dark ? R.drawable.widget_bg_dark : R.drawable.widget_bg);
+            rv.setInt(R.id.root, "setBackgroundResource", dark ? R.drawable.widget_bg_dark : R.drawable.widget_bg);
             rv.setImageViewBitmap(R.id.grid, bmp);
             Intent open = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
             if (open != null) {

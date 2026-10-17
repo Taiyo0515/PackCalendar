@@ -1,6 +1,6 @@
 import { Plus } from "lucide-react";
 import { hm, toDate, WEEKDAYS } from "../core/date";
-import { onDay } from "../core/calendar";
+import { visibleOnDay } from "../core/calendar";
 import { holidayName } from "../core/holidays";
 import { bagOf } from "../core/prep";
 import type { Occurrence } from "../core/model";
@@ -30,7 +30,7 @@ export function DayList({ day }: { day: string }) {
   const { state, open } = useApp();
   return (
     <>
-      {onDay(state, day).map((o) => {
+      {visibleOnDay(state, day).map((o) => {
         const bag = bagOf(state, o.plan.bagId);
         const [a, b] = times(o, day);
         return (

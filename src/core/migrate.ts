@@ -60,6 +60,7 @@ export function fromV2(old: Any, now = new Date()): State {
       end,
       allDay: !!e.allDay,
       memo: e.memo ?? "",
+      calendar: "main",
       plan: clean(plan(e.plan, false)) as Plan,
       repeat:
         e.recurrence && e.recurrence !== "none"

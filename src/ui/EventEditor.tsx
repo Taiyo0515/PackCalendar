@@ -1,10 +1,10 @@
 import { useMemo, useRef, useState } from "react";
-import { X, Clock, Backpack, Plus, Repeat, Package, StickyNote } from "lucide-react";
+import { X, Clock, Backpack, Plus, Repeat, Package, StickyNote, CalendarDays } from "lucide-react";
 import { addDays, addMinutes, minutesBetween, weekday, WEEKDAYS } from "../core/date";
 import { deleteEvent, findOccurrence, lastWithTitle, saveEvent, saveOne } from "../core/calendar";
 import type { EventDraft } from "../core/calendar";
-import { emptyPlan, newId } from "../core/model";
-import type { Repeat as RepeatT } from "../core/model";
+import { CALENDARS, CALENDAR_NAMES, emptyPlan, newId, showsCalendar } from "../core/model";
+import type { CalendarId, Repeat as RepeatT } from "../core/model";
 import { useApp } from "./App";
 import { BagChip, Segment, Sheet, Switch } from "./kit";
 
@@ -20,11 +20,15 @@ export function EventEditor({ occKey, day }: { occKey: string | null; day: strin
     end: `${day}T10:00`,
     allDay: false,
     memo: "",
+    calendar: "main" as CalendarId,
     plan: emptyPlan(),
     repeat: null,
   };
   const [title, setTitle] = useState(init.title);
   const [allDay, setAllDay] = useState(init.allDay);
+  const [calendar, setCalendar] = useState<CalendarId>(
+    original?.calendar ?? (showsCalendar(state, "main") ? "main" : "fixed"),
+  );
   const [start, setStart] = useState(init.start);
   const [end, setEnd] = useState(init.end ?? addMinutes(init.start, 60));
   const [lastDay, setLastDay] = useState(init.allDay && init.end ? addDays(init.end, -1) : init.start.slice(0, 10));
@@ -51,7 +55,7 @@ export function EventEditor({ occKey, day }: { occKey: string | null; day: strin
       freq === "none" ? null : { freq, weekdays: freq === "weekly" ? [...weekdays].sort() : [], until: until || null };
     const s = allDay ? `${start.slice(0, 10)}T00:00` : start;
     const e = allDay ? `${addDays(lastDay < s.slice(0, 10) ? s.slice(0, 10) : lastDay, 1)}T00:00` : end;
-    return { title: t, start: s, end: e, allDay, memo: memo.trim(), plan, repeat };
+    return { title: t, start: s, end: e, allDay, memo: memo.trim(), calendar, plan, repeat };
   };
 
   const setStartKeep = (next: string) => {
@@ -128,6 +132,18 @@ export function EventEditor({ occKey, day }: { occKey: string | null; day: strin
             autoFocus={!original}
             enterKeyHint="done"
           />
+        </div>
+
+        <div className="eblock">
+          <div className="erow">
+            <CalendarDays size={22} />
+            <Segment<CalendarId>
+              label="カレンダー"
+              value={calendar}
+              onChange={setCalendar}
+              options={CALENDARS.map((id) => [id, CALENDAR_NAMES[id]] as [CalendarId, string])}
+            />
+          </div>
         </div>
 
         <div className="eblock">

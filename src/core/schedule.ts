@@ -1,5 +1,5 @@
 import { addDays, dayKey, hm, monthGrid, relativeDay, stamp, toTime } from "./date";
-import { onDay } from "./calendar";
+import { visibleOnDay } from "./calendar";
 import { holidayName } from "./holidays";
 import { BAG_COLORS, NEUTRAL, WORN } from "./model";
 import type { State } from "./model";
@@ -100,7 +100,7 @@ export function widgetData(s: State, now = new Date()): WidgetData {
     for (const day of monthGrid(dayKey(d).slice(0, 7), s.settings.weekStart)) cover.add(day);
   }
   for (const day of [...cover].sort()) {
-    const list = onDay(s, day).map((o) => ({
+    const list = visibleOnDay(s, day).map((o) => ({
       t: o.title,
       c: o.plan.bagId && bagOf(s, o.plan.bagId) ? BAG_COLORS[bagOf(s, o.plan.bagId)!.color] : NEUTRAL,
     }));

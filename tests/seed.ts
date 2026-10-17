@@ -14,6 +14,7 @@ export function seedState(today: string) {
     end,
     allDay: false,
     memo: "",
+    calendar: "main",
     plan: plan(bagId),
     repeat: null,
     ...more,
@@ -46,6 +47,10 @@ export function seedState(today: string) {
       }),
       ev("trip", "旅行", `${d(9)}T00:00`, `${d(12)}T00:00`, "pack", { allDay: true }),
       ev("meeting", "オンライン会議", `${d(1)}T20:00`, `${d(1)}T21:00`, null),
+      ev("club", "サークル", `${d(-3)}T19:00`, `${d(-3)}T21:00`, null, {
+        calendar: "fixed",
+        repeat: { freq: "weekly", weekdays: [4], until: null },
+      }),
     ],
     exceptions: {},
     settings: {
@@ -54,6 +59,7 @@ export function seedState(today: string) {
       auto: true,
       theme: "system",
       widgetTheme: "system",
+      hidden: ["fixed"],
       remind: { on: false, evening: "21:00", morning: "07:00" },
     },
     cursor: new Date(`${today}T00:00:00`).toISOString(),

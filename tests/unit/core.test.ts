@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { holidaysOf, holidayName } from "../../src/core/holidays";
 import { emptyState, emptyPlan, validate, HOME, WORN } from "../../src/core/model";
 import type { Event, State } from "../../src/core/model";
-import { deleteEvent, occurrences, onDay, saveEvent, saveOne, lastWithTitle } from "../../src/core/calendar";
+import { deleteEvent, occurrences, onDay, saveEvent, saveOne, lastWithTitle, visibleOnDay } from "../../src/core/calendar";
 import { advance, linesOf, nextUnit, unitsBetween, removeBag, removeItem } from "../../src/core/prep";
 import { forecast, notices, widgetData } from "../../src/core/schedule";
 import { fromV2 } from "../../src/core/migrate";
@@ -33,6 +33,7 @@ const ev = (id: string, start: string, bagId: string | null, extra: Partial<Even
   end: null,
   allDay: false,
   memo: "",
+  calendar: "main",
   plan: { ...emptyPlan(), bagId },
   repeat: null,
   ...extra,
@@ -155,6 +156,46 @@ test("widget data carries units, titles per day and optional holidays", () => {
   assert.equal(w.holidays["2026-09-21"], "敬老の日");
   s.settings.holidays = false;
   assert.deepEqual(widgetData(s, T("2026-09-27T12:00")).holidays, {});
+});
+
+test("hidden calendars stay out of the views but still drive preparations", () => {
+  const s = world();
+  s.settings.remind = { on: true, evening: "21:00", morning: "07:00" };
+  s.events.push(ev("大学", "2026-09-28T09:00", "pack", { calendar: "fixed" }));
+  assert.deepEqual(emptyState().settings.hidden, ["fixed"]);
+  assert.equal(occurrences(s, "2026-09-28", "2026-09-29").length, 1);
+  assert.equal(visibleOnDay(s, "2026-09-28").length, 0);
+  assert.equal(widgetData(s, T("2026-09-27T12:00")).days["2026-09-28"], undefined);
+  // Preparations, notices and the widget's prep card ignore the display filter.
+  assert.equal(nextUnit(s, T("2026-09-27T12:00"))?.title, "大学");
+  assert.equal(notices(s, T("2026-09-27T12:00")).length, 2);
+  assert.equal(widgetData(s, T("2026-09-27T12:00")).units[0].title, "大学");
+  // Showing the calendar brings it back everywhere.
+  s.settings.hidden = [];
+  assert.equal(visibleOnDay(s, "2026-09-28").length, 1);
+  assert.equal(widgetData(s, T("2026-09-27T12:00")).days["2026-09-28"][0].t, "大学");
+});
+
+test("editing one occurrence can move it to the other calendar", () => {
+  const s = world();
+  s.events.push(ev("univ", "2026-09-28T09:00", "pack", { repeat: { freq: "weekly", weekdays: [1], until: null } }));
+  const o = onDay(s, "2026-09-28")[0];
+  saveOne(s, o.key, { ...o, calendar: "fixed" });
+  assert.equal(s.events[0].calendar, "main");
+  assert.equal(s.exceptions["univ@2026-09-28"].patch.calendar, "fixed");
+  assert.equal(visibleOnDay(s, "2026-09-28").length, 0);
+  assert.equal(onDay(s, "2026-09-28")[0].calendar, "fixed");
+});
+
+test("data saved before the calendar fields existed still loads", () => {
+  const s = world();
+  s.events.push(ev("a", "2026-09-28T09:00", "pack"));
+  const raw = JSON.parse(JSON.stringify(s));
+  delete raw.settings.hidden;
+  for (const e of raw.events) delete e.calendar;
+  const ok = validate(raw);
+  assert.deepEqual(ok.settings.hidden, ["fixed"]);
+  assert.equal(ok.events[0].calendar, "main");
 });
 
 test("removing bags and items cleans references", () => {

@@ -1,11 +1,12 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Plus, Check } from "lucide-react";
 import { addDays, addMonths, dayKey, monthGrid, WEEKDAYS, weekday } from "../core/date";
-import { occurrences, endOf } from "../core/calendar";
+import { occurrences, endOf, visibleOccurrences } from "../core/calendar";
 import { holidayName } from "../core/holidays";
 import { bagOf, linesOf, nextUnit } from "../core/prep";
 import { whenLabel } from "../core/schedule";
-import type { Occurrence } from "../core/model";
+import { CALENDARS, CALENDAR_NAMES, showsCalendar } from "../core/model";
+import type { CalendarId, Occurrence } from "../core/model";
 import { useApp } from "./App";
 import { bagColor } from "./kit";
 import { DayList, DayTitle } from "./DaySheet";
@@ -55,6 +56,7 @@ export function CalendarScreen() {
           </button>
         </header>
         {unit && <PrepCard unitKey={unit.key} />}
+        <CalendarFilter />
         <Month
           month={month}
           selected={selected}
@@ -86,6 +88,31 @@ export function CalendarScreen() {
           </div>
         </aside>
       )}
+    </div>
+  );
+}
+
+/** TimeTree-style calendar list: tap a name to show or hide its events. */
+function CalendarFilter() {
+  const { state, commit } = useApp();
+  return (
+    <div className="cal-filter" role="group" aria-label="表示するカレンダー">
+      {CALENDARS.map((id) => (
+        <button
+          key={id}
+          className="chip"
+          aria-pressed={showsCalendar(state, id)}
+          onClick={() =>
+            commit((s) => {
+              s.settings.hidden = showsCalendar(s, id)
+                ? [...s.settings.hidden, id]
+                : s.settings.hidden.filter((x) => x !== id);
+            })
+          }
+        >
+          {CALENDAR_NAMES[id]}
+        </button>
+      ))}
     </div>
   );
 }
@@ -154,7 +181,7 @@ function Month(props: { month: string; selected: string; onPick: (d: string) => 
 
   const byDay = useMemo(() => {
     const map = new Map<string, Occurrence[]>();
-    const list = occurrences(state, days[0], addDays(days[41], 1));
+    const list = visibleOccurrences(state, occurrences(state, days[0], addDays(days[41], 1)));
     for (const o of list) {
       const last = endOf(o);
       for (let d = o.start.slice(0, 10); `${d}T00:00` < last && d <= days[41]; d = addDays(d, 1)) {
@@ -199,7 +226,9 @@ function Month(props: { month: string; selected: string; onPick: (d: string) => 
               if (holiday) bars.push({ text: holiday, color: "var(--holiday)", key: "h" });
               for (const o of list) bars.push({ text: o.title, color: bagColor(bagOf(state, o.plan.bagId)), key: o.key });
               const over = bars.length > cap;
-              const visible = over ? bars.slice(0, cap - 1) : bars;
+              // With room for only one bar there is no space for the "+N" line, so show one name.
+              const visible = over ? bars.slice(0, Math.max(1, cap - 1)) : bars;
+              const more = bars.length - visible.length;
               const wd = weekday(day);
               const cls = [
                 "day",
@@ -223,7 +252,7 @@ function Month(props: { month: string; selected: string; onPick: (d: string) => 
                       {b.text}
                     </span>
                   ))}
-                  {over && <span className="bar more">+{bars.length - visible.length}</span>}
+                  {over && cap > 1 && <span className="bar more">+{more}</span>}
                 </button>
               );
             })}

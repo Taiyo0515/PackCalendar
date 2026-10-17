@@ -15,6 +15,15 @@ export const NEUTRAL = "#8E8E93";
 export const HOME = "home";
 export const WORN = "worn";
 
+/** Calendars an event can belong to. */
+export const CALENDARS = ["main", "fixed"] as const;
+export type CalendarId = (typeof CALENDARS)[number];
+/** The fixed calendar holds standing commitments such as university classes. */
+export const CALENDAR_NAMES: Record<CalendarId, string> = {
+  main: "通常",
+  fixed: "固定の用事",
+};
+
 const id = z.string().regex(/^[A-Za-z0-9_-]{1,100}$/);
 const name = z.string().trim().min(1).max(200);
 const day = z.string().refine(isValidDay);
@@ -22,6 +31,7 @@ const time = z.string().refine(isValidStamp);
 const clock = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
 const ids = z.array(id).max(5000);
 const theme = z.enum(["system", "light", "dark"]);
+const calendarId = z.enum(CALENDARS);
 
 export const bagSchema = z.object({
   id,
@@ -54,6 +64,7 @@ export const eventSchema = z.object({
   end: time.nullable(),
   allDay: z.boolean(),
   memo: z.string().max(10000),
+  calendar: calendarId.default("main"),
   plan: planSchema,
   repeat: repeatSchema.nullable(),
 });
@@ -64,6 +75,7 @@ export const patchSchema = z
     end: time.nullable(),
     allDay: z.boolean(),
     memo: z.string().max(10000),
+    calendar: calendarId,
     plan: planSchema.partial(),
   })
   .partial();
@@ -77,6 +89,7 @@ export const settingsSchema = z.object({
   auto: z.boolean(),
   theme,
   widgetTheme: theme,
+  hidden: z.array(calendarId).max(CALENDARS.length).default(["fixed"]),
   remind: z.object({
     on: z.boolean(),
     evening: clock.nullable(),
@@ -107,6 +120,9 @@ export type State = z.infer<typeof stateSchema>;
 /** One day of an event after repetition and exceptions are applied. */
 export type Occurrence = Event & { key: string; baseId: string; date: string };
 
+/** Whether the calendar's events belong in the calendar views (month, day list, widget). */
+export const showsCalendar = (s: State, calendar: CalendarId) => !s.settings.hidden.includes(calendar);
+
 export const newId = () => crypto.randomUUID();
 export const emptyPlan = (): Plan => ({
   bagId: null,
@@ -128,6 +144,7 @@ export function emptyState(now = new Date()): State {
       auto: true,
       theme: "system",
       widgetTheme: "system",
+      hidden: ["fixed"],
       remind: { on: false, evening: "21:00", morning: "07:00" },
     },
     cursor: now.toISOString(),

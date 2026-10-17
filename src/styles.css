@@ -534,6 +534,19 @@ button.row:active,
 .cal-head .title {
   cursor: default;
 }
+.cal-filter {
+  display: flex;
+  gap: 8px;
+  padding: 0 12px 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.cal-filter::-webkit-scrollbar {
+  display: none;
+}
+.cal-filter .chip {
+  flex: none;
+}
 .prep {
   margin: 0 12px 8px;
   padding: 10px 14px;

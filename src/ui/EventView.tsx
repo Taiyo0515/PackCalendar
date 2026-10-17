@@ -1,6 +1,7 @@
-import { ArrowLeft, Backpack, ChevronRight, Package, Repeat, StickyNote } from "lucide-react";
+import { ArrowLeft, Backpack, CalendarDays, ChevronRight, Package, Repeat, StickyNote } from "lucide-react";
 import { addDays, hm, jaDate } from "../core/date";
 import { findOccurrence, repeatLabel } from "../core/calendar";
+import { CALENDAR_NAMES } from "../core/model";
 import { bagOf, neededIds } from "../core/prep";
 import { useApp } from "./App";
 import { Sheet, bagColor } from "./kit";
@@ -56,6 +57,12 @@ export function EventView({ occKey }: { occKey: string }) {
             <span />
           )}
         </div>
+        {o.calendar !== "main" && (
+          <div className="line-row">
+            <CalendarDays size={22} />
+            <span>{CALENDAR_NAMES[o.calendar]}</span>
+          </div>
+        )}
         {bag && (
           <div className="line-row">
             <Backpack size={22} />

@@ -65,6 +65,19 @@ test("month shows readable event titles and holidays", async ({ page }) => {
   await expect(page.locator(".bar", { hasText: "敬老の日" })).toHaveCount(0);
 });
 
+test("the fixed calendar is hidden until it is shown", async ({ page }) => {
+  await start(page);
+  const bar = page.locator(".day", { hasText: "24" }).locator(".bar", { hasText: "サークル" });
+  await expect(bar).toHaveCount(0);
+  await page.getByRole("button", { name: "固定の用事" }).click();
+  await expect(bar).toBeVisible();
+  // The choice survives a reload.
+  await page.reload();
+  await expect(page.locator(".day", { hasText: "24" }).locator(".bar", { hasText: "サークル" })).toBeVisible();
+  await page.getByRole("button", { name: "固定の用事" }).click();
+  await expect(bar).toHaveCount(0);
+});
+
 test("prep card groups moves by source and opens the bag", async ({ page }) => {
   await start(page);
   const card = page.locator(".prep");
@@ -175,5 +188,5 @@ test("backup round trip", async ({ page }) => {
   await expect.poll(async () => (await state(page)).events.length).toBe(0);
   page.once("dialog", (d) => d.accept());
   await page.locator('input[type="file"]').setInputFiles(file);
-  await expect.poll(async () => (await state(page)).events.length).toBe(6);
+  await expect.poll(async () => (await state(page)).events.length).toBe(7);
 });

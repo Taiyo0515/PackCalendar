@@ -1,4 +1,5 @@
 import { addDays, addMinutes, daysBetween, minutesBetween, weekday } from "./date";
+import { showsCalendar } from "./model";
 import type { Event, Occurrence, Patch, Plan, State } from "./model";
 
 export const occKey = (eventId: string, day: string) => `${eventId}@${day}`;
@@ -79,6 +80,12 @@ export const compareOcc = (a: Occurrence, b: Occurrence) =>
 export const onDay = (s: State, day: string) =>
   occurrences(s, day, addDays(day, 1));
 
+/** Occurrences in the calendars the user is showing. Preparations ignore this. */
+export const visibleOccurrences = (s: State, list: Occurrence[]) =>
+  list.filter((o) => showsCalendar(s, o.calendar));
+
+export const visibleOnDay = (s: State, day: string) => visibleOccurrences(s, onDay(s, day));
+
 export function findOccurrence(s: State, key: string) {
   const at = key.lastIndexOf("@");
   const e = s.events.find((x) => x.id === key.slice(0, at));
@@ -120,7 +127,7 @@ export function saveOne(s: State, key: string, draft: EventDraft) {
   if (!e) return;
   const plain = occurrenceOf({ ...s, exceptions: {} }, e, key.slice(at + 1))!;
   const patch: Patch = {};
-  for (const f of ["title", "start", "end", "allDay", "memo"] as const)
+  for (const f of ["title", "start", "end", "allDay", "memo", "calendar"] as const)
     if (JSON.stringify(draft[f]) !== JSON.stringify(plain[f]))
       Object.assign(patch, { [f]: draft[f] });
   const plan: Partial<Plan> = {};

@@ -1,0 +1,90 @@
+name: Build packages
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+jobs:
+  # iPhone (unsigned ipa for SideStore) and Android (signed apk) build in parallel.
+  ipa:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+        env:
+          VITE_PUSH_URL: ${{ vars.VITE_PUSH_URL }}
+      - run: npx cap sync ios
+      - run: sudo gem install xcodeproj --no-document
+      - run: ruby scripts/ios/add_widget_target.rb
+      - run: bash scripts/ios/build.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PackCalendar-ipa
+          path: build/ios/PackCalendar-*.ipa*
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: xcodebuild-log
+          path: build/ios/xcodebuild.log
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm ci
+      - run: npm run build
+        env:
+          VITE_PUSH_URL: ${{ vars.VITE_PUSH_URL }}
+      - run: npx cap sync android
+      - name: Assemble release APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon
+        env:
+          VERSION_CODE: ${{ github.run_number }}
+      - name: Name and hash the APK
+        working-directory: android/app/build/outputs/apk/release
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          cp app-release.apk "PackCalendar-$VERSION.apk"
+          sha256sum "PackCalendar-$VERSION.apk" > "PackCalendar-$VERSION.apk.sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PackCalendar-apk
+          path: android/app/build/outputs/apk/release/*.apk*
+  # One release per version carries both the ipa and the apk, marked as pre-release.
+  publish:
+    needs: [ipa, apk]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: PackCalendar-ipa
+          path: dist
+      - uses: actions/download-artifact@v4
+        with:
+          name: PackCalendar-apk
+          path: dist
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/PackCalendar-* \
+          --prerelease --title "$GITHUB_REF_NAME" \
+          --notes "開発中のビルドです。Android は APK を端末で開いて、iPhone は SideStore で ipa を読み込んでください。"

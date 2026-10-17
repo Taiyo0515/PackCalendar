@@ -115,10 +115,10 @@ public class PackBridgePlugin: CAPPlugin, CAPBridgedPlugin {
                         case .daily:
                             repeatRule = ["freq": "daily", "weekdays": [Int]()]
                         case .weekly:
-                            let days = (rule.dayOfTheWeek ?? []).map { Int($0.dayOfTheWeek.rawValue) - 1 }
+                            let days = (rule.daysOfTheWeek ?? []).map { Int($0.dayOfTheWeek.rawValue) - 1 }
                             repeatRule = ["freq": "weekly", "weekdays": days]
                         case .monthly:
-                            if rule.dayOfTheWeek == nil {
+                            if rule.daysOfTheWeek == nil {
                                 repeatRule = ["freq": "monthly", "weekdays": [Int]()]
                             }
                         default:

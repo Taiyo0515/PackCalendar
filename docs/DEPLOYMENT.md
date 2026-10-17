@@ -28,12 +28,14 @@ npx wrangler secret bulk worker/.dev.vars.json --config worker/wrangler.jsonc
 ### ビルド
 
 - 手動：GitHub の Actions → **Build iOS IPA** → Run workflow。成果物（Artifacts）の `PackCalendar-ipa` に ipa が入ります。
-- リリース：`ios-v3.0.0` のようなタグを push すると、同じビルドのあと GitHub Releases に ipa と SHA-256 を添付します。
+- リリース：`ios-v0.3.0` のようなタグを push すると、同じビルドのあと GitHub Releases に ipa と SHA-256 を添付します。
 
 ```sh
-git tag ios-v3.0.0
-git push origin ios-v3.0.0
+git tag ios-v0.3.0
+git push origin ios-v0.3.0
 ```
+
+開発中のバージョンは 0 始まり（0.x.y）。安定したら 1.0.0 に昇格する。旧「3.x」時代の成果物は 0.3.x に読み替える。
 
 ビルドの流れ（`.github/workflows/ios.yml`）：
 
@@ -62,11 +64,11 @@ Windows では Xcode を動かせないため、iOS のビルドは GitHub Actio
 ### ビルド
 
 - 手動：GitHub の Actions → **Build Android APK** → Run workflow。成果物（Artifacts）の `PackCalendar-apk` に APK が入ります。
-- リリース：`android-v3.2.0` のようなタグを push すると、GitHub Releases に APK（署名済み）と SHA-256 を添付します。
+- リリース：`android-v0.3.0` のようなタグを push すると、GitHub Releases に APK（署名済み）と SHA-256 を添付します。
 
 ```sh
-git tag android-v3.2.0
-git push origin android-v3.2.0
+git tag android-v0.3.0
+git push origin android-v0.3.0
 ```
 
 ビルドの流れ（`.github/workflows/android.yml`）：

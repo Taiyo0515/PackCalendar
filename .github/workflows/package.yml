@@ -85,6 +85,7 @@ jobs:
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           set -e
           ls -la dist

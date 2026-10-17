@@ -12,6 +12,36 @@ export interface Env {
 }
 const DAY = 86400000;
 const key = z.string().regex(/^[A-Za-z0-9_-]+$/);
+
+/** Accepted origins: the web app plus the Capacitor shell (iOS / Android). */
+function allowedOrigin(origin: string | null, env: Env) {
+  return origin === env.ALLOWED_ORIGIN || origin === "capacitor://localhost" || origin === "ionic://localhost";
+}
+
+const IMPORT_HEADERS: Record<string, string> = {
+  "User-Agent":
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15",
+  Accept: "application/json, text/calendar, text/plain;q=0.8, */*;q=0.5",
+  "Accept-Language": "ja,en;q=0.8",
+};
+
+/** Only two calendar hosts are allowed through, and only their data paths. */
+export function importTarget(raw: string): URL {
+  const u = new URL(raw);
+  if (
+    u.protocol !== "https:" ||
+    u.username ||
+    u.password ||
+    u.port ||
+    u.search ||
+    u.hash
+  )
+    throw new Error("forbidden");
+  if (u.hostname === "calendar.google.com" && /^\/calendar\/ical\/[^/]+\/[^/]+\/basic\.ics$/.test(u.pathname))
+    return u;
+  if (u.hostname === "timetreeapp.com" && /^\/api\/v1\/[\w./-]+$/.test(u.pathname)) return u;
+  throw new Error("forbidden");
+}
 export function validPushEndpoint(value: string) {
   try {
     const u = new URL(value),
@@ -139,7 +169,7 @@ export async function handleRequest(req: Request, env: Env): Promise<Response> {
   };
   const reply = (body: unknown, status = 200) =>
     new Response(JSON.stringify(body), { status, headers });
-  if (origin !== env.ALLOWED_ORIGIN) return reply({ error: "origin" }, 403);
+  if (origin === null || !allowedOrigin(origin, env)) return reply({ error: "origin" }, 403);
   headers["Access-Control-Allow-Origin"] = origin;
   headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS";
   headers["Access-Control-Allow-Headers"] =
@@ -152,6 +182,35 @@ export async function handleRequest(req: Request, env: Env): Promise<Response> {
       ? reply({ publicKey: env.VAPID_PUBLIC_KEY })
       : reply({ error: "not configured" }, 503);
   try {
+    if (path === "/import" && req.method === "POST") {
+      if (
+        !env.INVITATION_CODE ||
+        !(await equalSecret(req.headers.get("X-Invitation") ?? "", env.INVITATION_CODE))
+      )
+        return reply({ error: "invitation" }, 403);
+      const { url, cookie } = z
+        .object({ url: z.string().max(2048), cookie: z.string().max(4096).nullable().default(null) })
+        .strict()
+        .parse(await readJSON(req));
+      const target = importTarget(url);
+      const headers: Record<string, string> = { ...IMPORT_HEADERS };
+      if (cookie) {
+        headers.Cookie = cookie;
+        if (target.hostname === "timetreeapp.com") {
+          headers.Referer = "https://timetreeapp.com/";
+          headers.Origin = "https://timetreeapp.com";
+          headers["X-Requested-With"] = "XMLHttpRequest";
+        }
+      }
+      const res = await fetch(target, {
+        headers,
+        redirect: "follow",
+        signal: AbortSignal.timeout(30000),
+      });
+      if (!res.ok) return reply({ error: `upstream ${res.status}` }, 502);
+      const text = (await res.text()).slice(0, 4000000);
+      return reply({ text });
+    }
     if (path === "/device" && req.method === "POST") {
       const existing = await identity(req, env);
       if (
@@ -228,6 +287,7 @@ export async function handleRequest(req: Request, env: Env): Promise<Response> {
               "content type",
               "body",
               "too large",
+              "forbidden",
             ].includes(error.message))
             ? "invalid request"
             : "service unavailable",

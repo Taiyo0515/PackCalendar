@@ -2,12 +2,24 @@ import { registerPlugin } from "@capacitor/core";
 import { LocalNotifications } from "@capacitor/local-notifications";
 import { Directory, Encoding, Filesystem } from "@capacitor/filesystem";
 import type { Notice } from "../core/schedule";
+import type { Dto } from "../core/import";
 import type { Theme } from "../core/model";
 
 interface PackBridge {
   saveWidget(o: { json: string }): Promise<{ groups: string[] }>;
   setAppearance(o: { mode: Theme }): Promise<void>;
   widgetStatus(): Promise<{ candidates: string[]; readable: boolean }>;
+  readCalendar(o: { from: string; to: string }): Promise<{
+    events: {
+      uid: string;
+      title: string;
+      start: string;
+      end: string | null;
+      allDay: boolean;
+      memo: string;
+      repeat: { freq: "daily" | "weekly" | "monthly"; weekdays: number[]; until?: string } | null;
+    }[];
+  }>;
 }
 const bridge = registerPlugin<PackBridge>("PackBridge");
 
@@ -57,6 +69,26 @@ export async function widgetProblem(): Promise<string | null> {
 }
 export async function setAppearance(mode: Theme) {
   await bridge.setAppearance({ mode }).catch(() => undefined);
+}
+
+/** The iPhone's own calendars, read with full calendar access. */
+export async function readDeviceCalendar(from: Date, to: Date): Promise<Dto[]> {
+  const stampLocal = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}T${String(
+      d.getHours(),
+    ).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  const { events } = await bridge.readCalendar({ from: stampLocal(from), to: stampLocal(to) });
+  return events.map((e) => ({
+    uid: e.uid,
+    title: e.title,
+    start: e.start,
+    end: e.end,
+    allDay: e.allDay,
+    memo: e.memo,
+    repeat: e.repeat ? { freq: e.repeat.freq, weekdays: e.repeat.weekdays, until: e.repeat.until ?? null } : null,
+    gone: [],
+    edits: [],
+  }));
 }
 
 /** One backup per day in Files > PackCalendar, keeping the latest 7. */

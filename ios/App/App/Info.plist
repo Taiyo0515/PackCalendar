@@ -68,6 +68,10 @@
 	<true/>
 <key>NSCameraUsageDescription</key>
 <string>バッグや持ち物の写真を登録するためにカメラを使います。</string>
+<key>NSCalendarsFullAccessUsageDescription</key>
+<string>端末のカレンダーの予定を PackCalendar に取り込むために読み取ります。</string>
+<key>NSCalendarsUsageDescription</key>
+<string>端末のカレンダーの予定を PackCalendar に取り込むために読み取ります。</string>
 <key>NSPhotoLibraryUsageDescription</key>
 <string>バッグや持ち物の写真を選ぶために写真へのアクセスを使います。</string>
 <key>NSPhotoLibraryAddUsageDescription</key>

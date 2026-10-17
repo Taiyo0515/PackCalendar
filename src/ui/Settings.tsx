@@ -4,6 +4,7 @@ import type { Settings, Theme } from "../core/model";
 import { isNative } from "../platform";
 import { parseBackup } from "../platform/store";
 import { useApp } from "./App";
+import { ImportSheet } from "./Import";
 import { Segment, Switch } from "./kit";
 
 const THEMES: [Theme, string][] = [
@@ -22,6 +23,7 @@ export function SettingsScreen() {
   const [wipe, setWipe] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const [widget, setWidget] = useState<string | null>(null);
+  const [imp, setImp] = useState<null | "timetree" | "google" | "device">(null);
 
   useEffect(() => {
     if (!isNative) return;
@@ -193,6 +195,21 @@ export function SettingsScreen() {
             )}
           </div>
 
+          <div className="section">取り込み</div>
+          <div className="group plain">
+            <button className="row" onClick={() => setImp("timetree")}>
+              <span className="main-text">TimeTree</span>
+            </button>
+            <button className="row" onClick={() => setImp("google")}>
+              <span className="main-text">Google カレンダー</span>
+            </button>
+            {isNative && (
+              <button className="row" onClick={() => setImp("device")}>
+                <span className="main-text">端末のカレンダー</span>
+              </button>
+            )}
+          </div>
+
           <div className="section">データ</div>
           <div className="group plain">
             <button className="row" onClick={() => void exportData()}>
@@ -237,6 +254,7 @@ export function SettingsScreen() {
           <p className="version num">PackCalendar {__APP_VERSION__}</p>
         </div>
       </div>
+      {imp && <ImportSheet kind={imp} onClose={() => setImp(null)} />}
     </>
   );
 }

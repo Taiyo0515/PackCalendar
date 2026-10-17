@@ -23,21 +23,20 @@ npx wrangler secret bulk worker/.dev.vars.json --config worker/wrangler.jsonc
 
 アプリの設定で通知をオンにし、`worker/.dev.vars.json` の `INVITATION_CODE`（招待コード）を入れて接続します。iPhone の Web 版で通知を受け取るには、Safari でホーム画面に追加したアプリから接続します。
 
-## iPhone アプリ（GitHub Actions ＋ SideStore）
+## アプリのビルド（GitHub Actions）
 
-### ビルド
-
-- 手動：GitHub の Actions → **Build iOS IPA** → Run workflow。成果物（Artifacts）の `PackCalendar-ipa` に ipa が入ります。
-- リリース：`ios-v0.3.0` のようなタグを push すると、同じビルドのあと GitHub Releases に ipa と SHA-256 を添付します。
+バージョンを区切るときは、`v0.3.2` のようなタグを 1 つ push するだけです。ipa と apk を **同じリリースに** 添付し、リリースは **pre-release** として表示されます。
 
 ```sh
-git tag ios-v0.3.0
-git push origin ios-v0.3.0
+git tag v0.3.2
+git push origin v0.3.2
 ```
 
-開発中のバージョンは 0 始まり（0.x.y）。安定したら 1.0.0 に昇格する。旧「3.x」時代の成果物は 0.3.x に読み替える。
+- 手動実行：GitHub の Actions → **Build packages** → Run workflow。成果物は Artifacts の `PackCalendar-ipa` と `PackCalendar-apk`。
+- ワークフローは `.github/workflows/package.yml`。macOS のジョブで ipa、ubuntu のジョブで apk を作り、最後の `publish` ジョブが両方を同じリリースに載せる。
+- 開発中のバージョンは 0 始まり（0.x.y）。機能追加で 0.4.0、修正で 0.3.3 のように上げ、安定したら 1.0.0 に昇格する。開発中のリリースはすべて pre-release。
 
-ビルドの流れ（`.github/workflows/ios.yml`）：
+### ipa の中身
 
 1. `npm run build` → `npx cap sync ios`
 2. `ruby scripts/ios/add_widget_target.rb`：Xcode プロジェクトにウィジェットの拡張と、ネイティブのブリッジを追加する
@@ -45,7 +44,16 @@ git push origin ios-v0.3.0
 
 Windows では Xcode を動かせないため、iOS のビルドは GitHub Actions の macOS で行います。
 
-### インストール（SideStore）
+### apk の中身
+
+1. `npm run build` → `npx cap sync android`
+2. `./gradlew assembleRelease`：`android/app/packcalendar.keystore`（パスワードは `build.gradle` に記載の個人利用用）で署名する
+
+Windows に Android SDK が無くても CI 上でビルドが完結します。
+
+## iPhone アプリ（SideStore）
+
+### インストール
 
 1. SideStore を[公式の手順](https://docs.sidestore.io/)で導入しておく。
 2. ipa を iPhone に保存し、SideStore の「＋」から追加する。
@@ -59,24 +67,7 @@ Windows では Xcode を動かせないため、iOS のビルドは GitHub Actio
 - Web 版とアプリ版はデータが別です。設定の「書き出す」「読み込む」で移します。
 - アプリ版は1日1回、「ファイル」→ PackCalendar にバックアップを保存します（7日分）。
 
-## Android アプリ（GitHub Actions ＋ 署名付き APK）
-
-### ビルド
-
-- 手動：GitHub の Actions → **Build Android APK** → Run workflow。成果物（Artifacts）の `PackCalendar-apk` に APK が入ります。
-- リリース：`android-v0.3.0` のようなタグを push すると、GitHub Releases に APK（署名済み）と SHA-256 を添付します。
-
-```sh
-git tag android-v0.3.0
-git push origin android-v0.3.0
-```
-
-ビルドの流れ（`.github/workflows/android.yml`）：
-
-1. `npm run build` → `npx cap sync android`
-2. `./gradlew assembleRelease`：`android/app/packcalendar.keystore`（パスワードは `build.gradle` に記載の個人利用用）で署名する
-
-Windows に Android SDK が無くても CI 上でビルドが完結します。
+## Android アプリ（署名付き APK）
 
 ### インストール
 

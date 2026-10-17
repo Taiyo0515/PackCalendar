@@ -14,7 +14,7 @@
 
 ### Android 版（APK）
 
-タグ `android-v*` を付けると GitHub Actions が署名済み APK をリリースに添付します。
+`v0.3.2` のようなタグを 1 つ push すると、ipa と apk を同じリリースにまとめて添付します（リリースは pre-release）。
 通知・ホーム画面ウィジェット（準備・カレンダー）・端末カレンダーの取り込みは iOS 版と同じ機能です。
 署名鍵は `android/app/packcalendar.keystore`（パスワードは `android/app/build.gradle` に記載・個人利用用）。
 APK は SideStore など不要で、端末で開けばインストールできます。
@@ -41,7 +41,6 @@ npx tsx scripts/screens.ts   # 画面のスクリーンショット（test-resul
 | `ios` | Capacitor の iOS プロジェクト、ウィジェット（`ios/App/PackWidget`） |
 | `android` | Capacitor の Android プロジェクト、ホーム画面ウィジェット（`PackBridgePlugin`・`*WidgetProvider`） |
 | `scripts/ios` | ウィジェットのターゲット追加とビルド（GitHub Actions の macOS で実行） |
-| `scripts/android` | アイコン・スプラッシュの生成（Windows のローカルで実行） |
-| `tests` | 単体テスト（`unit`）、画面のテスト（`e2e`） |
+| `scripts/android` | アイコン・スプラッシュの生成（Windows のローカルで実行） || `tests` | 単体テスト（`unit`）、画面のテスト（`e2e`） |
 
 思想は `思想.txt`、判断の履歴は `決定ログ.md` にあります。以前の資料は root と `docs/archive` に残しています。

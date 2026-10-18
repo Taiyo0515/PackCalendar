@@ -22,8 +22,9 @@ export function Sheet(props: {
   const [leaving, setLeaving] = useState(false);
   const gesture = useRef<{ x: number; y: number; origin: "edge" | "body"; active: boolean } | null>(null);
   const offsets = useRef({ peek: 0, full: 0 });
-  const state = useRef({ phase: "peek" as "peek" | "full", leaving: false });
-
+  const state = useRef({ phase: props.full ? ("full" as const) : ("peek" as const), leaving: false });
+  /** Sheets that can also grow to full height (the day sheet); others just close. */
+  const peekable = props.expandable === true;
   useEffect(() => {
     const prev = document.activeElement as HTMLElement | null;
     const focusable = ref.current?.querySelector<HTMLElement>("[autofocus]") ?? ref.current;
@@ -31,9 +32,8 @@ export function Sheet(props: {
     return () => prev?.focus?.({ preventScroll: true });
   }, []);
 
-  // Measure the peek height once (DaySheet content is static while mounted) and the full height.
+  // Measure the peek height once (content is static while mounted) and the full height.
   useEffect(() => {
-    if (!props.expandable) return;
     const el = ref.current;
     if (!el) return;
     offsets.current.peek = el.getBoundingClientRect().height;
@@ -42,7 +42,7 @@ export function Sheet(props: {
     document.body.appendChild(probe);
     offsets.current.full = Math.round(window.innerHeight - probe.getBoundingClientRect().height - 12);
     probe.remove();
-  }, [props.expandable]);
+  }, []);
 
   /** Glide to a phase while the CSS keeps the class-based height honest afterwards. */
   const settle = (next: "peek" | "full") => {
@@ -72,7 +72,6 @@ export function Sheet(props: {
   };
 
   const onDown = (e: React.TouchEvent) => {
-    if (!props.expandable) return;
     const el = ref.current;
     if (!el || moving || state.current.leaving) return;
     const target = e.target as HTMLElement;
@@ -109,7 +108,9 @@ export function Sheet(props: {
         const el = ref.current;
         if (el) el.dataset.dragged = "1"; // taps right after a real drag are ignored
       }
-    } else if (dy < 0 && state.current.phase === "peek") dy /= 3; // rubber band while stretching upward
+    } else if (dy < 0) {
+      dy /= 3; // rubber band while stretching upward
+    }
     setDrag(dy);
   };
   const onUp = () => {
@@ -119,10 +120,20 @@ export function Sheet(props: {
     const dy = drag;
     const el = ref.current;
     if (g.origin === "body" && el?.dataset.dragged) setTimeout(() => delete el.dataset.dragged, 150);
-    if (state.current.phase === "peek" && dy < -70) return settle("full");
-    if (state.current.phase === "peek" && dy > 70) return leave();
-    if (state.current.phase === "full" && dy > 90) return settle("peek");
-    return settle(state.current.phase); // snap back where it was
+    const p = state.current.phase;
+    if (p === "peek") {
+      if (dy < -70) return settle(peekable ? "full" : "peek");
+      if (dy > 70) return leave();
+      return settle("peek");
+    }
+    if (peekable) {
+      // The day sheet folds back to peek, it does not close from full.
+      if (dy > 90) return settle("peek");
+      return settle("full");
+    }
+    // Any other sheet: a decent pull from anywhere dismisses it.
+    if (dy > 90) return leave();
+    return settle("full");
   };
 
   return (

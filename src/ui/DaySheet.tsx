@@ -64,14 +64,15 @@ export function DayList({ day }: { day: string }) {
   );
 }
 
+/** The day shown; it moves when the finger swipes across the panes. */
 export function DaySheet({ day }: { day: string }) {
   const { open, close } = useApp();
-  /** The day shown; it moves when the finger swipes across the panes. */
   const [d, setD] = useState(day);
   const ref = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const [w, setW] = useState(0);
-  const strip = useRef({ mode: "idle" as "idle" | "drag", day });
+  /** Track position left by the finger when a swipe committed: the strip glides home from there. */
+  const pending = useRef<number | null>(null);
   const touch = useRef<{ x: number; y: number; at: number; horizontal: boolean | null } | null>(null);
 
   useEffect(() => {
@@ -84,14 +85,19 @@ export function DaySheet({ day }: { day: string }) {
     return () => ro.disconnect();
   }, []);
 
-  // A committed swipe already carried the strip to the neighbor pane; swap the content under it.
+  // A committed swipe swaps the day right away; keep the visible pane still, then glide home.
   useLayoutEffect(() => {
     const tr = trackRef.current;
-    if (!tr || w === 0 || strip.current.day === d) return;
-    strip.current.day = d;
-    strip.current.mode = "idle";
+    if (!tr || w === 0 || pending.current === null) return;
+    const from = pending.current;
+    pending.current = null;
     tr.style.transition = "none";
-    tr.style.transform = `translateX(${-w}px)`;
+    tr.style.transform = `translateX(${from}px)`;
+    void tr.offsetHeight; // commit the jump before the glide
+    requestAnimationFrame(() => {
+      tr.style.transition = "transform 0.24s cubic-bezier(0.32, 0.72, 0.2, 1)";
+      tr.style.transform = `translateX(${-w}px)`;
+    });
   }, [d, w]);
 
   const start = (e: React.TouchEvent) => {
@@ -108,7 +114,6 @@ export function DaySheet({ day }: { day: string }) {
       if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
       g.horizontal = Math.abs(dx) > Math.abs(dy);
       if (!g.horizontal) return;
-      strip.current.mode = "drag";
       tr.style.transition = "none";
       ref.current?.closest<HTMLElement>(".sheet")?.setAttribute("data-dragged", "1");
     }
@@ -124,11 +129,17 @@ export function DaySheet({ day }: { day: string }) {
     const dt = Date.now() - g.at;
     const fling = dt < 240 && Math.abs(dx) > 45;
     const dir = dx <= -w * 0.3 || (fling && dx < 0) ? 1 : dx >= w * 0.3 || (fling && dx > 0) ? -1 : 0;
-    tr.style.transition = "transform 0.22s ease-out";
-    tr.style.transform = dir ? `translateX(${-w + dir * w}px)` : `translateX(${-w}px)`;
+    if (dir) {
+      // Where the strip sits when the new day becomes the center pane, so nothing jumps.
+      const dxc = Math.max(-w, Math.min(w, dx));
+      pending.current = dxc - w + dir * w;
+      setD((x) => addDays(x, dir));
+    } else {
+      tr.style.transition = "transform 0.22s ease-out";
+      tr.style.transform = `translateX(${-w}px)`;
+    }
     const sheet = ref.current?.closest<HTMLElement>(".sheet");
     if (sheet) setTimeout(() => sheet.removeAttribute("data-dragged"), 150);
-    if (dir) setTimeout(() => setD((x) => addDays(x, dir)), 230);
   };
 
   return (

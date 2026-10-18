@@ -188,6 +188,8 @@ function Month(
   const [w, setW] = useState(0);
   /** What the strip is doing: idle, following the finger, or animating to a commit. */
   const strip = useRef({ mode: "idle" as "idle" | "drag", month: props.month });
+  /** Track position left by the finger when a swipe committed: the strip glides home from there. */
+  const pending = useRef<number | null>(null);
   const lastDrag = useRef(0);
 
   useLayoutEffect(() => {
@@ -223,17 +225,24 @@ function Month(
     });
   }, [state, shown, ws]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // props.month moved: either the finger already carried the strip to the neighbor pane
-  // (then just swap the content under it), or play a one-pane slide from the strip's center.
+  // props.month moved: a committed swipe swaps the month right away (keep the visible pane
+  // still, then glide home); a button/keyboard change plays a one-pane slide and then swaps.
   useLayoutEffect(() => {
     const tr = trackRef.current;
     if (!tr || w === 0 || strip.current.month === props.month) return;
     strip.current.month = props.month;
-    if (strip.current.mode === "drag") {
+    const from = pending.current;
+    pending.current = null;
+    if (strip.current.mode === "drag" && from !== null) {
       strip.current.mode = "idle";
       setShown(props.month);
       tr.style.transition = "none";
-      tr.style.transform = `translateX(${-w}px)`;
+      tr.style.transform = `translateX(${from}px)`;
+      void tr.offsetHeight; // commit the jump before the glide
+      requestAnimationFrame(() => {
+        tr.style.transition = "transform 0.24s cubic-bezier(0.32, 0.72, 0.2, 1)";
+        tr.style.transform = `translateX(${-w}px)`;
+      });
       return;
     }
     const d = props.dir || 1;
@@ -280,10 +289,16 @@ function Month(
     // Decide like the system calendar: far enough or a quick fling moves a month.
     const fling = dt < 240 && Math.abs(dx) > 45;
     const d = dx <= -w * 0.3 || (fling && dx < 0) ? 1 : dx >= w * 0.3 || (fling && dx > 0) ? -1 : 0;
-    tr.style.transition = "transform 0.22s ease-out";
-    tr.style.transform = d ? `translateX(${-w + d * w}px)` : `translateX(${-w}px)`;
-    if (d) setTimeout(() => props.onShift(d), 230);
-    else strip.current.mode = "idle";
+    if (d) {
+      // Where the strip sits when the new month becomes the center pane, so nothing jumps.
+      const dxc = Math.max(-w, Math.min(w, dx));
+      pending.current = dxc - w + d * w;
+      props.onShift(d);
+    } else {
+      tr.style.transition = "transform 0.22s ease-out";
+      tr.style.transform = `translateX(${-w}px)`;
+      strip.current.mode = "idle";
+    }
   };
 
   const head = Array.from({ length: 7 }, (_, i) => (i + ws) % 7);

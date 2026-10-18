@@ -24,6 +24,8 @@ export function Sheet(props: {
     x: number;
     y: number;
     origin: "edge" | "body";
+    /** Whether the sheet owns the finger (display tracking); claimed on first intent for body gestures. */
+    claimed: boolean;
     /** Raw finger travel samples for fling detection: {ms, dy}. */
     hist: Array<{ t: number; dy: number }>;
   } | null>(null);
@@ -96,13 +98,16 @@ export function Sheet(props: {
         node = node.parentElement;
       }
     }
+    // A body gesture is only a CANDIDATE: the display stays untouched, so the browser
+    // can scroll (or a pager can take the finger) without interrupted scroll starts.
     gesture.current = {
       x: e.touches[0].clientX,
       y: e.touches[0].clientY,
       origin,
+      claimed: origin === "edge",
       hist: [{ t: performance.now(), dy: 0 }],
     };
-    setDragging(true); // freeze height/transform transitions while tracking the finger
+    if (origin === "edge") setDragging(true);
   };
   const onMove = (e: React.TouchEvent) => {
     const g = gesture.current;
@@ -111,39 +116,28 @@ export function Sheet(props: {
     const raw = e.touches[0].clientY - g.y;
     g.hist.push({ t: performance.now(), dy: raw });
     if (g.hist.length > 32) g.hist.shift();
-    if (g.origin === "body") {
+    if (g.origin === "body" && !g.claimed) {
+      // Awaiting intent: sideways belongs to a pager, up to scrolling (or, on a peeked
+      // day sheet, to expanding). Only a clear downward pull makes it a sheet drag NOW.
       if (Math.abs(dx) > Math.abs(raw)) {
-        // Sideways: hand the gesture back to the day pager.
         gesture.current = null;
-        setDragging(false);
-        setDrag(0);
         return;
       }
       if (raw <= 0) {
-        if (peekable && state.current.phase === "peek") {
-          // Upward on a peeked day sheet: keep waiting for the -8px crossing,
-          // no matter how small the first steps are. Peek content cannot scroll.
-          if (raw < -8) {
-            gesture.current = null;
-            setDragging(false);
-            setDrag(0);
-            settle("full");
-          }
-          return;
+        if (peekable && state.current.phase === "peek" && raw < -8) {
+          gesture.current = null;
+          settle("full");
         }
-        // Otherwise hand it back to scrolling (full sheets with lists).
-        gesture.current = null;
-        setDragging(false);
-        setDrag(0);
         return;
       }
-      if (raw > 8) {
-        const el = ref.current;
-        if (el) el.dataset.dragged = "1"; // taps right after a real drag are ignored
-      }
-      setDrag(raw);
-    } else {
-      const dy = raw < 0 ? raw / 3 : raw; // rubber band while stretching upward
+      if (raw < 8) return;
+      g.claimed = true;
+      const el = ref.current;
+      if (el) el.dataset.dragged = "1"; // taps right after a real drag are ignored
+      setDragging(true); // freeze transitions from here, when the sheet really owns the finger
+    }
+    if (g.claimed) {
+      const dy = g.origin === "body" ? raw : raw < 0 ? raw / 3 : raw; // rubber band up from edge
       setDrag(dy);
     }
   };
@@ -170,7 +164,6 @@ export function Sheet(props: {
         flickDown = end.dy > 6 && v > 0.55;
       }
     }
-    console.log(`[s-up] flickUp=${flickUp} flickDown=${flickDown}`);
     if (p === "peek") {
       if (dy < -70 || flickUp) return settle(peekable ? "full" : "peek");
       if (dy > 70 || flickDown) return leave();

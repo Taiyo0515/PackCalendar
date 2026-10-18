@@ -20,7 +20,13 @@ export function Sheet(props: {
   const [dragging, setDragging] = useState(false); // finger tracking: no CSS transition
   const [moving, setMoving] = useState(false); // snap/expand/leave in progress
   const [leaving, setLeaving] = useState(false);
-  const gesture = useRef<{ x: number; y: number; origin: "edge" | "body"; active: boolean } | null>(null);
+  const gesture = useRef<{
+    x: number;
+    y: number;
+    origin: "edge" | "body";
+    /** Raw finger travel samples for fling detection: {ms, dy}. */
+    hist: Array<{ t: number; dy: number }>;
+  } | null>(null);
   const offsets = useRef({ peek: 0, full: 0 });
   const state = useRef({ phase: props.full ? ("full" as const) : ("peek" as const), leaving: false });
   /** Sheets that can also grow to full height (the day sheet); others just close. */
@@ -84,55 +90,99 @@ export function Sheet(props: {
     if (origin === "body") {
       let node: HTMLElement | null = target;
       while (node && node !== el) {
-        if (node.scrollTop > 0) return;
+        if (node.scrollTop > 0) {
+          return;
+        }
         node = node.parentElement;
       }
     }
-    gesture.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, origin, active: true };
+    gesture.current = {
+      x: e.touches[0].clientX,
+      y: e.touches[0].clientY,
+      origin,
+      hist: [{ t: performance.now(), dy: 0 }],
+    };
     setDragging(true); // freeze height/transform transitions while tracking the finger
   };
   const onMove = (e: React.TouchEvent) => {
     const g = gesture.current;
-    if (!g?.active) return;
+    if (!g) return;
     const dx = e.touches[0].clientX - g.x;
-    let dy = e.touches[0].clientY - g.y;
+    const raw = e.touches[0].clientY - g.y;
+    g.hist.push({ t: performance.now(), dy: raw });
+    if (g.hist.length > 32) g.hist.shift();
     if (g.origin === "body") {
-      if (dy <= 0 || Math.abs(dx) > Math.abs(dy)) {
-        // The finger went up or sideways: hand the gesture back to scrolling / a pager.
+      if (Math.abs(dx) > Math.abs(raw)) {
+        // Sideways: hand the gesture back to the day pager.
         gesture.current = null;
         setDragging(false);
         setDrag(0);
         return;
       }
-      if (Math.abs(dy) > 8) {
+      if (raw <= 0) {
+        if (peekable && state.current.phase === "peek") {
+          // Upward on a peeked day sheet: keep waiting for the -8px crossing,
+          // no matter how small the first steps are. Peek content cannot scroll.
+          if (raw < -8) {
+            gesture.current = null;
+            setDragging(false);
+            setDrag(0);
+            settle("full");
+          }
+          return;
+        }
+        // Otherwise hand it back to scrolling (full sheets with lists).
+        gesture.current = null;
+        setDragging(false);
+        setDrag(0);
+        return;
+      }
+      if (raw > 8) {
         const el = ref.current;
         if (el) el.dataset.dragged = "1"; // taps right after a real drag are ignored
       }
-    } else if (dy < 0) {
-      dy /= 3; // rubber band while stretching upward
+      setDrag(raw);
+    } else {
+      const dy = raw < 0 ? raw / 3 : raw; // rubber band while stretching upward
+      setDrag(dy);
     }
-    setDrag(dy);
   };
   const onUp = () => {
     const g = gesture.current;
     gesture.current = null;
-    if (!g?.active) return;
+    if (!g) return;
     const dy = drag;
     const el = ref.current;
     if (g.origin === "body" && el?.dataset.dragged) setTimeout(() => delete el.dataset.dragged, 150);
     const p = state.current.phase;
+    // End-of-gesture speed decides whether a small quick flick counts like a full pull.
+    let flickUp = false;
+    let flickDown = false;
+    {
+      const h = g.hist;
+      const end = h[h.length - 1];
+      const window = h.filter((s) => end.t - s.t <= 140);
+      const first = window[0];
+      const dt = end.t - first.t;
+      if (dt >= 16) {
+        const v = (end.dy - first.dy) / dt; // px/ms over the final stretch of the gesture
+        flickUp = end.dy < -6 && v < -0.55;
+        flickDown = end.dy > 6 && v > 0.55;
+      }
+    }
+    console.log(`[s-up] flickUp=${flickUp} flickDown=${flickDown}`);
     if (p === "peek") {
-      if (dy < -70) return settle(peekable ? "full" : "peek");
-      if (dy > 70) return leave();
+      if (dy < -70 || flickUp) return settle(peekable ? "full" : "peek");
+      if (dy > 70 || flickDown) return leave();
       return settle("peek");
     }
     if (peekable) {
       // The day sheet folds back to peek, it does not close from full.
-      if (dy > 90) return settle("peek");
+      if (dy > 90 || flickDown) return settle("peek");
       return settle("full");
     }
     // Any other sheet: a decent pull from anywhere dismisses it.
-    if (dy > 90) return leave();
+    if (dy > 90 || flickDown) return leave();
     return settle("full");
   };
 

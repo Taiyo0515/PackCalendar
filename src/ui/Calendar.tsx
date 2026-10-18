@@ -179,10 +179,16 @@ function Month(
 ) {
   const { state, now } = useApp();
   const ws = state.settings.weekStart;
-  const days = monthGrid(props.month, ws);
   const todayKey = dayKey(now);
   const ref = useRef<HTMLDivElement>(null);
+  const trackRef = useRef<HTMLDivElement>(null);
+  /** The month the three panes are built from; it lags behind props.month during a slide. */
+  const [shown, setShown] = useState(props.month);
   const [cap, setCap] = useState(2);
+  const [w, setW] = useState(0);
+  /** What the strip is doing: idle, following the finger, or animating to a commit. */
+  const strip = useRef({ mode: "idle" as "idle" | "drag", month: props.month });
+  const lastDrag = useRef(0);
 
   useLayoutEffect(() => {
     const el = ref.current;
@@ -191,6 +197,7 @@ function Month(
       const row = el.clientHeight / 6;
       const bar = parseFloat(getComputedStyle(el).getPropertyValue("--bar-h")) || 16;
       setCap(Math.max(1, Math.floor((row - 26) / (bar + 2))));
+      setW(el.clientWidth);
     };
     measure();
     const ro = new ResizeObserver(measure);
@@ -198,21 +205,87 @@ function Month(
     return () => ro.disconnect();
   }, []);
 
-  const byDay = useMemo(() => {
-    const map = new Map<string, Occurrence[]>();
-    const list = visibleOccurrences(state, occurrences(state, days[0], addDays(days[41], 1)));
-    for (const o of list) {
-      const last = endOf(o);
-      for (let d = o.start.slice(0, 10); `${d}T00:00` < last && d <= days[41]; d = addDays(d, 1)) {
-        if (d < days[0]) continue;
-        if (!map.has(d)) map.set(d, []);
-        map.get(d)!.push(o);
+  // One shared map per pane: day key -> occurrences that reach into it.
+  const panes = useMemo(() => {
+    return [addMonths(shown, -1), shown, addMonths(shown, 1)].map((m) => {
+      const days = monthGrid(m, ws);
+      const byDay = new Map<string, Occurrence[]>();
+      const list = visibleOccurrences(state, occurrences(state, days[0], addDays(days[41], 1)));
+      for (const o of list) {
+        const last = endOf(o);
+        for (let d = o.start.slice(0, 10); `${d}T00:00` < last && d <= days[41]; d = addDays(d, 1)) {
+          if (d < days[0]) continue;
+          if (!byDay.has(d)) byDay.set(d, []);
+          byDay.get(d)!.push(o);
+        }
       }
-    }
-    return map;
-  }, [state, days[0]]); // eslint-disable-line react-hooks/exhaustive-deps
+      return { days, byDay };
+    });
+  }, [state, shown, ws]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const touch = useRef<{ x: number; y: number } | null>(null);
+  // props.month moved: either the finger already carried the strip to the neighbor pane
+  // (then just swap the content under it), or play a one-pane slide from the strip's center.
+  useLayoutEffect(() => {
+    const tr = trackRef.current;
+    if (!tr || w === 0 || strip.current.month === props.month) return;
+    strip.current.month = props.month;
+    if (strip.current.mode === "drag") {
+      strip.current.mode = "idle";
+      setShown(props.month);
+      tr.style.transition = "none";
+      tr.style.transform = `translateX(${-w}px)`;
+      return;
+    }
+    const d = props.dir || 1;
+    tr.style.transition = "transform 0.26s ease-out";
+    tr.style.transform = `translateX(${-w * (1 + d)}px)`;
+    const t = setTimeout(() => {
+      tr.style.transition = "none";
+      tr.style.transform = `translateX(${-w}px)`;
+      setShown(props.month);
+    }, 280);
+    return () => clearTimeout(t);
+  }, [props.month, props.dir, w]);
+
+  const touch = useRef<{ x: number; y: number; at: number; horizontal: boolean | null } | null>(null);
+  const start = (e: React.TouchEvent) => {
+    const t = e.touches[0];
+    touch.current = { x: t.clientX, y: t.clientY, at: Date.now(), horizontal: null };
+  };
+  const move = (e: React.TouchEvent) => {
+    const g = touch.current;
+    const tr = trackRef.current;
+    if (!g || !tr || w === 0) return;
+    const dx = e.touches[0].clientX - g.x,
+      dy = e.touches[0].clientY - g.y;
+    if (g.horizontal === null) {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      // Only a clearly sideways finger takes over; up and down keeps scrolling.
+      g.horizontal = Math.abs(dx) > Math.abs(dy);
+      if (!g.horizontal) return;
+      strip.current.mode = "drag";
+      tr.style.transition = "none";
+    }
+    const dx2 = Math.max(-w, Math.min(w, dx));
+    tr.style.transform = `translateX(${dx2 - w}px)`;
+  };
+  const end = (e: React.TouchEvent) => {
+    const g = touch.current;
+    touch.current = null;
+    const tr = trackRef.current;
+    if (!g?.horizontal || !tr || w === 0) return;
+    const dx = e.changedTouches[0].clientX - g.x;
+    const dt = Date.now() - g.at;
+    lastDrag.current = Date.now();
+    // Decide like the system calendar: far enough or a quick fling moves a month.
+    const fling = dt < 240 && Math.abs(dx) > 45;
+    const d = dx <= -w * 0.3 || (fling && dx < 0) ? 1 : dx >= w * 0.3 || (fling && dx > 0) ? -1 : 0;
+    tr.style.transition = "transform 0.22s ease-out";
+    tr.style.transform = d ? `translateX(${-w + d * w}px)` : `translateX(${-w}px)`;
+    if (d) setTimeout(() => props.onShift(d), 230);
+    else strip.current.mode = "idle";
+  };
+
   const head = Array.from({ length: 7 }, (_, i) => (i + ws) % 7);
   return (
     <>
@@ -223,67 +296,84 @@ function Month(
           </span>
         ))}
       </div>
-      <div
-        className="month"
-        ref={ref}
-        onTouchStart={(e) => (touch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY })}
-        onTouchEnd={(e) => {
-          const t = touch.current;
-          touch.current = null;
-          if (!t) return;
-          const dx = e.changedTouches[0].clientX - t.x,
-            dy = e.changedTouches[0].clientY - t.y;
-          if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) props.onShift(dx < 0 ? 1 : -1);
-        }}
-      >
-        {/* The inner grid is keyed on the month so a change replays the slide-in animation. */}
-        <div key={props.month} className={`month-grid${dirClass(props.dir)}`}>
-          {[0, 1, 2, 3, 4, 5].map((w) => (
-          <div className="week" key={w}>
-            {days.slice(w * 7, w * 7 + 7).map((day) => {
-              const holiday = state.settings.holidays ? holidayName(day) : null;
-              const list = byDay.get(day) ?? [];
-              const bars: { text: string; color: string; key: string }[] = [];
-              if (holiday) bars.push({ text: holiday, color: "var(--holiday)", key: "h" });
-              for (const o of list) bars.push({ text: o.title, color: bagColor(bagOf(state, o.plan.bagId)), key: o.key });
-              const over = bars.length > cap;
-              // With room for only one bar there is no space for the "+N" line, so show one name.
-              const visible = over ? bars.slice(0, Math.max(1, cap - 1)) : bars;
-              const more = bars.length - visible.length;
-              const wd = weekday(day);
-              const cls = [
-                "day",
-                day.slice(0, 7) !== props.month && "other",
-                day === todayKey && "today",
-                day === props.selected && "sel",
-                holiday || wd === 0 ? "sun" : wd === 6 ? "sat" : "",
-              ]
-                .filter(Boolean)
-                .join(" ");
-              return (
-                <button
-                  key={day}
-                  className={cls}
-                  onClick={() => props.onPick(day)}
-                  aria-label={`${Number(day.slice(5, 7))}月${Number(day.slice(8))}日 ${bars.map((b) => b.text).join("、")}`}
-                >
-                  <span className="n num">{Number(day.slice(8))}</span>
-                  {visible.map((b) => (
-                    <span className="bar" key={b.key} style={{ background: b.color }}>
-                      {b.text}
-                    </span>
-                  ))}
-                  {over && cap > 1 && <span className="bar more">+{more}</span>}
-                </button>
-              );
-            })}
-          </div>
-        ))}
+      <div className="month" ref={ref} onTouchStart={start} onTouchMove={move} onTouchEnd={end} onTouchCancel={end}>
+        {/* Three months side by side; the strip follows the finger and snaps to one pane. */}
+        <div className="month-track" ref={trackRef} style={w ? { transform: `translateX(${-w}px)` } : undefined}>
+          {panes.map((pane, i) => (
+            /* Neighbor panes are copy slides for the drag; only the center one is active. */
+            <div className="month-pane" key={i} aria-hidden={i !== 1 || undefined} inert={i !== 1 ? true : undefined}>
+              <Grid
+                days={pane.days}
+                month={shown}
+                selected={props.selected}
+                cap={cap}
+                byDay={pane.byDay}
+                onPick={(day) => {
+                  if (Date.now() - lastDrag.current < 300) return; // the drag just ended, not a tap
+                  props.onPick(day);
+                }}
+              />
+            </div>
+          ))}
         </div>
       </div>
     </>
   );
 }
 
-/** Animation class for the month grid, based on the direction of the change. */
-const dirClass = (dir: number) => (dir > 0 ? " next" : dir < 0 ? " prev" : "");
+function Grid(props: {
+  days: string[];
+  month: string;
+  selected: string;
+  cap: number;
+  byDay: Map<string, Occurrence[]>;
+  onPick: (day: string) => void;
+}) {
+  const { state, now } = useApp();
+  const todayKey = dayKey(now);
+  return (
+    <>
+      {[0, 1, 2, 3, 4, 5].map((wk) => (
+        <div className="week" key={wk}>
+          {props.days.slice(wk * 7, wk * 7 + 7).map((day) => {
+            const holiday = state.settings.holidays ? holidayName(day) : null;
+            const list = props.byDay.get(day) ?? [];
+            const bars: { text: string; color: string; key: string }[] = [];
+            if (holiday) bars.push({ text: holiday, color: "var(--holiday)", key: "h" });
+            for (const o of list) bars.push({ text: o.title, color: bagColor(bagOf(state, o.plan.bagId)), key: o.key });
+            const over = bars.length > props.cap;
+            // With room for only one bar there is no space for the "+N" line, so show one name.
+            const visible = over ? bars.slice(0, Math.max(1, props.cap - 1)) : bars;
+            const more = bars.length - visible.length;
+            const wd = weekday(day);
+            const cls = [
+              "day",
+              day.slice(0, 7) !== props.month && "other",
+              day === todayKey && "today",
+              day === props.selected && "sel",
+              holiday || wd === 0 ? "sun" : wd === 6 ? "sat" : "",
+            ]
+              .filter(Boolean)
+              .join(" ");
+            return (
+              <button
+                key={day}
+                className={cls}
+                onClick={() => props.onPick(day)}
+                aria-label={`${Number(day.slice(5, 7))}月${Number(day.slice(8))}日 ${bars.map((b) => b.text).join("、")}`}
+              >
+                <span className="n num">{Number(day.slice(8))}</span>
+                {visible.map((b) => (
+                  <span className="bar" key={b.key} style={{ background: b.color }}>
+                    {b.text}
+                  </span>
+                ))}
+                {over && props.cap > 1 && <span className="bar more">+{more}</span>}
+              </button>
+            );
+          })}
+        </div>
+      ))}
+    </>
+  );
+}

@@ -16,7 +16,7 @@ async function start(page: Page, seed = true, time = `${TODAY}T08:00:00+09:00`) 
 }
 const wide = (page: Page) => (page.viewportSize()?.width ?? 0) >= 900;
 const openDay = async (page: Page, label: RegExp) => {
-  await page.getByRole("button", { name: label }).click();
+  await page.getByRole("button", { name: label }).first().click();
 };
 const state = (page: Page) =>
   page.evaluate(
@@ -110,7 +110,7 @@ test("add, edit one occurrence and delete an event", async ({ page }) => {
   await page.getByLabel("開始日").fill("2026-09-29");
   await page.getByRole("button", { name: "トート" }).click();
   await page.getByRole("button", { name: "保存" }).click();
-  await expect(page.locator(".day", { hasText: "29" }).locator(".bar", { hasText: "ジム" })).toBeVisible();
+  await expect(page.locator(".day", { hasText: "29" }).locator(".bar", { hasText: "ジム" }).first()).toBeVisible();
 
   // Same title fills the bag.
   await page.getByRole("button", { name: "予定を追加" }).first().click();
@@ -120,7 +120,7 @@ test("add, edit one occurrence and delete an event", async ({ page }) => {
 
   // Edit only one occurrence of a weekly event.
   if (!wide(page)) await openDay(page, /^9月30日/);
-  else await page.getByRole("button", { name: /^9月30日/ }).click();
+  else await page.getByRole("button", { name: /^9月30日/ }).first().click();
   await page.locator(".ev", { hasText: "大学" }).click();
   await page.getByRole("button", { name: "編集" }).click();
   await page.getByLabel("タイトル").fill("休講");
@@ -129,13 +129,13 @@ test("add, edit one occurrence and delete an event", async ({ page }) => {
   await expect(page.locator(".detail-title")).toHaveText("休講");
   await page.keyboard.press("Escape");
   if (!wide(page)) await page.keyboard.press("Escape");
-  await expect(page.locator(".day", { hasText: "28" }).locator(".bar", { hasText: "大学" })).toBeVisible();
+  await expect(page.locator(".day", { hasText: "28" }).locator(".bar", { hasText: "大学" }).first()).toBeVisible();
   const s = await state(page);
   expect(Object.keys(s.exceptions)).toEqual(["univ@2026-09-30"]);
 
   // Delete.
   if (!wide(page)) await openDay(page, /^9月29日/);
-  else await page.getByRole("button", { name: /^9月29日/ }).click();
+  else await page.getByRole("button", { name: /^9月29日/ }).first().click();
   await page.locator(".ev", { hasText: "ジム" }).click();
   await page.getByRole("button", { name: "編集" }).click();
   await page.getByRole("button", { name: "予定を削除" }).click();

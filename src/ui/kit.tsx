@@ -20,7 +20,7 @@ export function Sheet(props: {
   const [dragging, setDragging] = useState(false); // finger tracking: no CSS transition
   const [moving, setMoving] = useState(false); // snap/expand/leave in progress
   const [leaving, setLeaving] = useState(false);
-  const gesture = useRef<{ y: number; active: boolean } | null>(null);
+  const gesture = useRef<{ x: number; y: number; origin: "edge" | "body"; active: boolean } | null>(null);
   const offsets = useRef({ peek: 0, full: 0 });
   const state = useRef({ phase: "peek" as "peek" | "full", leaving: false });
 
@@ -77,16 +77,39 @@ export function Sheet(props: {
     if (!el || moving || state.current.leaving) return;
     const target = e.target as HTMLElement;
     const grip = !!target.closest(".grip");
-    const head = !!target.closest(".sheet-head") && !target.closest("button,input,textarea");
-    if (!grip && !head) return;
-    gesture.current = { y: e.touches[0].clientY, active: true };
+    const head = !!target.closest(".sheet-head");
+    const typing = !!target.closest("input,textarea");
+    if (typing) return;
+    // From the body itself, only when no scrolled content between here and the sheet owns the finger.
+    let origin: "edge" | "body" | null = grip || head ? "edge" : "body";
+    if (origin === "body") {
+      let node: HTMLElement | null = target;
+      while (node && node !== el) {
+        if (node.scrollTop > 0) return;
+        node = node.parentElement;
+      }
+    }
+    gesture.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, origin, active: true };
     setDragging(true); // freeze height/transform transitions while tracking the finger
   };
   const onMove = (e: React.TouchEvent) => {
     const g = gesture.current;
     if (!g?.active) return;
+    const dx = e.touches[0].clientX - g.x;
     let dy = e.touches[0].clientY - g.y;
-    if (dy < 0 && state.current.phase === "peek") dy /= 3; // rubber band while stretching upward
+    if (g.origin === "body") {
+      if (dy <= 0 || Math.abs(dx) > Math.abs(dy)) {
+        // The finger went up or sideways: hand the gesture back to scrolling / a pager.
+        gesture.current = null;
+        setDragging(false);
+        setDrag(0);
+        return;
+      }
+      if (Math.abs(dy) > 8) {
+        const el = ref.current;
+        if (el) el.dataset.dragged = "1"; // taps right after a real drag are ignored
+      }
+    } else if (dy < 0 && state.current.phase === "peek") dy /= 3; // rubber band while stretching upward
     setDrag(dy);
   };
   const onUp = () => {
@@ -94,6 +117,8 @@ export function Sheet(props: {
     gesture.current = null;
     if (!g?.active) return;
     const dy = drag;
+    const el = ref.current;
+    if (g.origin === "body" && el?.dataset.dragged) setTimeout(() => delete el.dataset.dragged, 150);
     if (state.current.phase === "peek" && dy < -70) return settle("full");
     if (state.current.phase === "peek" && dy > 70) return leave();
     if (state.current.phase === "full" && dy > 90) return settle("peek");

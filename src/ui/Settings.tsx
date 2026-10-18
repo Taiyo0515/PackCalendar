@@ -93,9 +93,15 @@ export function SettingsScreen() {
 
   const exportData = async () => {
     const json = await store.exportJSON(state);
+    const name = `PackCalendar-${new Date().toISOString().slice(0, 10)}.json`;
+    if (isNative) {
+      // The WebView cannot download files, so open the iOS/Android share sheet instead.
+      await (await import("../platform/native")).shareJSON(json, name);
+      return;
+    }
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([json], { type: "application/json" }));
-    a.download = `PackCalendar-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = name;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 10000);
   };

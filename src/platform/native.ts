@@ -1,6 +1,7 @@
 import { registerPlugin } from "@capacitor/core";
 import { LocalNotifications } from "@capacitor/local-notifications";
 import { Directory, Encoding, Filesystem } from "@capacitor/filesystem";
+import { Share } from "@capacitor/share";
 import type { Notice } from "../core/schedule";
 import type { Dto } from "../core/import";
 import type { Theme } from "../core/model";
@@ -91,12 +92,20 @@ export async function readDeviceCalendar(from: Date, to: Date): Promise<Dto[]> {
   }));
 }
 
-/** One backup per day in Files > PackCalendar, keeping the latest 7. */
+/** Local stamp used in backup file names, down to the second. */
+export function backupStamp(d = new Date()) {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+}
+
+/**
+ * One backup per write in Files > PackCalendar, keeping the latest 7.
+ * The name carries the second so several backups on one day stay separate files.
+ */
 export async function dailyBackup(json: string) {
-  const day = new Date().toISOString().slice(0, 10);
   const dir = "PackCalendar";
   await Filesystem.writeFile({
-    path: `${dir}/backup-${day}.json`,
+    path: `${dir}/backup-${backupStamp()}.json`,
     data: json,
     directory: Directory.Documents,
     encoding: Encoding.UTF8,
@@ -104,9 +113,21 @@ export async function dailyBackup(json: string) {
   });
   const files = (await Filesystem.readdir({ path: dir, directory: Directory.Documents })).files
     .map((f) => f.name)
-    .filter((n) => /^backup-\d{4}-\d{2}-\d{2}\.json$/.test(n))
+    .filter((n) => /^backup-\d{4}-\d{2}-\d{2}-\d{6}\.json$/.test(n))
     .sort()
     .reverse();
   for (const name of files.slice(7))
     await Filesystem.deleteFile({ path: `${dir}/${name}`, directory: Directory.Documents });
+}
+
+/** The app cannot download files in the WebView, so hand the JSON to the share sheet. */
+export async function shareJSON(json: string, name: string) {
+  const { uri } = await Filesystem.writeFile({
+    path: name,
+    data: json,
+    directory: Directory.Cache,
+    encoding: Encoding.UTF8,
+    recursive: true,
+  });
+  await Share.share({ title: name, url: uri });
 }

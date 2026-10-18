@@ -93,6 +93,10 @@ jobs:
           ls -la dist
           FILES="$(find dist -type f -name 'PackCalendar-*')"
           test -n "$FILES"
+          if [ -f .github/release-notes.md ]; then
+            NOTES=--notes-file=.github/release-notes.md
+          else
+            NOTES='--notes=開発中のビルドです。Android は APK を端末で開いて、iPhone は SideStore で ipa を読み込んでください。'
+          fi
           gh release create "$GITHUB_REF_NAME" $FILES \
-            --prerelease --title "$GITHUB_REF_NAME" \
-            --notes "開発中のビルドです。Android は APK を端末で開いて、iPhone は SideStore で ipa を読み込んでください。"
+            --prerelease --title "$GITHUB_REF_NAME" "$NOTES"

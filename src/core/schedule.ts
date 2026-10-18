@@ -1,5 +1,5 @@
-import { addDays, dayKey, hm, monthGrid, relativeDay, stamp, toTime } from "./date";
-import { visibleOnDay } from "./calendar";
+import { addDays, addMinutes, dayKey, hm, monthGrid, relativeDay, stamp, toTime } from "./date";
+import { occurrences, visibleOnDay } from "./calendar";
 import { holidayName } from "./holidays";
 import { BAG_COLORS, NEUTRAL } from "./model";
 import type { State } from "./model";
@@ -46,28 +46,47 @@ function clip(text: string, max: number) {
 
 export function notices(s: State, now = new Date()): Notice[] {
   const r = s.settings.remind;
-  if (!r.on) return [];
   const out: Notice[] = [];
-  for (const { unit, lines } of forecast(s, now)) {
-    const moves = lines.filter((l) => l.kind !== "extra" || l.names.length);
-    if (!moves.length) continue;
-    const day = unit.start.slice(0, 10);
-    const bag = bagOf(s, unit.bagId)!;
-    const body = clip(`${bag.name}｜${joinLines(lines)}`, 400);
-    const slots: [string, string, string | null][] = [
-      ["evening", "明日", r.evening ? `${addDays(day, -1)}T${r.evening}` : null],
-      ["morning", "今日", r.morning ? `${day}T${r.morning}` : null],
-    ];
-    for (const [kind, when, at] of slots) {
-      if (!at || at >= unit.start || toTime(at) <= now) continue;
-      out.push({
-        id: `${unit.key}:${kind}`,
-        at: toTime(at).toISOString(),
-        title: clip(`${when} ${unit.start.endsWith("T00:00") ? "" : hm(unit.start) + " "}${unit.title}`, 80),
-        body,
-        url: "#home",
-      });
+  if (r.on) {
+    for (const { unit, lines } of forecast(s, now)) {
+      const moves = lines.filter((l) => l.kind !== "extra" || l.names.length);
+      if (!moves.length) continue;
+      const day = unit.start.slice(0, 10);
+      const bag = bagOf(s, unit.bagId)!;
+      const body = clip(`${bag.name}｜${joinLines(lines)}`, 400);
+      const slots: [string, string, string | null][] = [
+        ["evening", "明日", r.evening ? `${addDays(day, -1)}T${r.evening}` : null],
+        ["morning", "今日", r.morning ? `${day}T${r.morning}` : null],
+      ];
+      for (const [kind, when, at] of slots) {
+        if (!at || at >= unit.start || toTime(at) <= now) continue;
+        out.push({
+          id: `${unit.key}:${kind}`,
+          at: toTime(at).toISOString(),
+          title: clip(`${when} ${unit.start.endsWith("T00:00") ? "" : hm(unit.start) + " "}${unit.title}`, 80),
+          body,
+          url: "#home",
+        });
+      }
     }
+  }
+  // Special per-event alerts, chosen in the editor and independent of the routine reminders.
+  const from = dayKey(now);
+  for (const o of occurrences(s, from, addDays(from, 14))) {
+    if (o.alert === null || o.alert === undefined) continue;
+    // Multi-day all-day events appear as an occurrence per day; alert only at the very start.
+    const base = s.events.find((x) => x.id === o.baseId);
+    if (o.allDay && base && !base.repeat && o.date !== base.start.slice(0, 10)) continue;
+    const at = addMinutes(o.start, o.alert);
+    if (at <= stamp(now)) continue;
+    const bag = bagOf(s, o.plan.bagId);
+    out.push({
+      id: `${o.key}:alert`,
+      at: toTime(at).toISOString(),
+      title: clip(`${o.allDay ? "" : "まもなく "}${o.title}`, 80),
+      body: clip(`${bag ? `${bag.name}｜` : ""}${o.allDay ? "終日の予定です" : `${hm(o.start)} 開始`}`, 400),
+      url: "#home",
+    });
   }
   return out.sort((a, b) => a.at.localeCompare(b.at)).slice(0, 60);
 }

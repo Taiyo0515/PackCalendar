@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { X, Clock, Backpack, Plus, Repeat, Package, StickyNote, CalendarDays } from "lucide-react";
+import { X, Clock, Backpack, Plus, Repeat, Package, StickyNote, CalendarDays, Bell } from "lucide-react";
 import { addDays, addMinutes, minutesBetween, weekday, WEEKDAYS } from "../core/date";
 import { deleteEvent, findOccurrence, lastWithTitle, saveEvent, saveOne } from "../core/calendar";
 import type { EventDraft } from "../core/calendar";
@@ -32,6 +32,8 @@ export function EventEditor({ occKey, day }: { occKey: string | null; day: strin
   const [start, setStart] = useState(init.start);
   const [end, setEnd] = useState(init.end ?? addMinutes(init.start, 60));
   const [lastDay, setLastDay] = useState(init.allDay && init.end ? addDays(init.end, -1) : init.start.slice(0, 10));
+  // -1 stands for "no special alert"; the model stores null.
+  const [alert, setAlert] = useState<number>(original?.alert ?? base?.alert ?? -1);
   const [plan, setPlan] = useState(init.plan);
   const [memo, setMemo] = useState(init.memo);
   const [freq, setFreq] = useState<Freq>(base?.repeat?.freq ?? "none");
@@ -55,7 +57,7 @@ export function EventEditor({ occKey, day }: { occKey: string | null; day: strin
       freq === "none" ? null : { freq, weekdays: freq === "weekly" ? [...weekdays].sort() : [], until: until || null };
     const s = allDay ? `${start.slice(0, 10)}T00:00` : start;
     const e = allDay ? `${addDays(lastDay < s.slice(0, 10) ? s.slice(0, 10) : lastDay, 1)}T00:00` : end;
-    return { title: t, start: s, end: e, allDay, memo: memo.trim(), calendar, plan, repeat };
+    return { title: t, start: s, end: e, allDay, memo: memo.trim(), calendar, plan, repeat, alert: alert === -1 ? null : alert };
   };
 
   const setStartKeep = (next: string) => {
@@ -150,7 +152,14 @@ export function EventEditor({ occKey, day }: { occKey: string | null; day: strin
           <div className="erow">
             <Clock size={22} />
             <span className="label">終日</span>
-            <Switch on={allDay} onChange={setAllDay} label="終日" />
+            <Switch
+              on={allDay}
+              onChange={(v) => {
+                setAllDay(v);
+                setAlert(-1);
+              }}
+              label="終日"
+            />
           </div>
           <div className="erow">
             <span className="indent" />
@@ -281,6 +290,43 @@ export function EventEditor({ occKey, day }: { occKey: string | null; day: strin
             )}
           </div>
         )}
+
+        <div className="eblock">
+          <div className="erow">
+            <Bell size={22} />
+            <div className="chips" role="group" aria-label="特別な通知">
+              {(allDay
+                ? ([
+                    [-1, "なし"],
+                    [480, "当日の朝"],
+                    [720, "当日の昼"],
+                    [-240, "前日の夜"],
+                  ] as [number, string][])
+                : ([
+                    [-1, "なし"],
+                    [0, "開始時刻"],
+                    [-5, "5分前"],
+                    [-30, "30分前"],
+                    [-60, "1時間前"],
+                    [-1440, "前日"],
+                  ] as [number, string][])
+              ).map(([v, text]) => (
+                <button key={v} className="chip" aria-pressed={alert === v} onClick={() => setAlert(v)}>
+                  {text}
+                </button>
+              ))}
+            </div>
+          </div>
+          {alert !== -1 && (
+            <div className="eextra">
+              {allDay
+                ? `予定の${alert === 480 ? "当日 8:00" : alert === 720 ? "当日 12:00" : "前日 20:00"}に通知します`
+                : alert === -1440
+                  ? "開始の前日の同じ時刻に通知します"
+                  : `開始${alert === 0 ? "の時刻" : `の${-alert}分前`}に通知します`}
+            </div>
+          )}
+        </div>
 
         {openItems && (
           <div className="eblock">

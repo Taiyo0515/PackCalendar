@@ -37,6 +37,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          if [ -f .github/release-notes.md ]; then
+            NOTES=--notes-file=.github/release-notes.md
+          else
+            NOTES='--notes=SideStore 用の未署名 IPA（ウィジェット入り）'
+          fi
           gh release create "$GITHUB_REF_NAME" build/ios/PackCalendar-*.ipa build/ios/PackCalendar-*.ipa.sha256 \
-            --prerelease --title "$GITHUB_REF_NAME" \
-            --notes "SideStore 用の未署名 IPA（ウィジェット入り）"
+            --prerelease --title "$GITHUB_REF_NAME" "$NOTES"

@@ -158,6 +158,22 @@ test("widget data carries units, titles per day and optional holidays", () => {
   assert.deepEqual(widgetData(s, T("2026-09-27T12:00")).holidays, {});
 });
 
+test("special per-event alerts fire even when routine reminders are off", () => {
+  const s = world();
+  s.settings.remind = { on: false, evening: null, morning: null };
+  s.events.push(ev("歯医者", "2026-09-28T20:00", null, { alert: -60 }));
+  s.events.push(ev("花見", "2026-09-29T00:00", null, { allDay: true, alert: -240 }));
+  const n = notices(s, T("2026-09-27T12:00"));
+  assert.equal(n.length, 2);
+  assert.equal(n[0].title, "まもなく 歯医者");
+  assert.equal(n[0].at, T("2026-09-28T19:00").toISOString()); // one hour before
+  assert.equal(n[1].at, T("2026-09-28T20:00").toISOString()); // the evening before the all-day event
+  // The alert belongs to the event, so editing one day follows the same exceptions model.
+  const o = onDay(s, "2026-09-28")[0];
+  saveOne(s, o.key, { ...o, alert: null });
+  assert.equal(notices(s, T("2026-09-27T12:00")).length, 1);
+});
+
 test("hidden calendars stay out of the views but still drive preparations", () => {
   const s = world();
   s.settings.remind = { on: true, evening: "21:00", morning: "07:00" };

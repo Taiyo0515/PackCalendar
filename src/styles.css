@@ -7,7 +7,7 @@
   --text: #111111;
   --sub: #8a8a8e;
   --faint: #c7c7cc;
-  --accent: #1e9e6a;
+  --accent: #3a7fd5;
   --red: #e5484d;
   --blue: #2f6fdf;
   --holiday: #d93a40;
@@ -31,7 +31,7 @@
     --text: #f2f2f2;
     --sub: #8e8e93;
     --faint: #48484a;
-    --accent: #2fbf83;
+    --accent: #5b9df2;
     --red: #ff6369;
     --blue: #5b8def;
     --holiday: #c9363c;
@@ -53,7 +53,7 @@
   --text: #f2f2f2;
   --sub: #8e8e93;
   --faint: #48484a;
-  --accent: #2fbf83;
+  --accent: #5b9df2;
   --red: #ff6369;
   --blue: #5b8def;
   --holiday: #c9363c;
@@ -422,6 +422,15 @@ button.row:active,
   justify-content: center;
   animation: fade 0.2s ease-out;
 }
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+.shade.leaving {
+  opacity: 0;
+  transition: opacity 0.24s ease-in;
+}
 .sheet {
   --bg2: var(--group);
   --fill: var(--fill2);
@@ -433,17 +442,38 @@ button.row:active,
   flex-direction: column;
   padding-bottom: env(safe-area-inset-bottom);
   animation: rise 0.25s ease-out;
+  transition: transform 0.24s ease, height 0.25s ease;
+}
+.sheet.dragging {
+  transition: none;
+}
+.sheet.leaving {
+  transform: translateY(110%) !important;
+  transition: transform 0.22s ease-in, opacity 0.22s ease-in;
+  opacity: 0.9;
 }
 .sheet.full {
   height: calc(100dvh - env(safe-area-inset-top) - 12px);
 }
 .grip {
+  position: relative;
+  width: 100%;
+  height: 18px;
+  margin: 0;
+  background: none;
+  flex: none;
+  touch-action: none;
+}
+.grip::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 6px;
+  transform: translateX(-50%);
   width: 36px;
   height: 5px;
   border-radius: 3px;
   background: var(--faint);
-  margin: 6px auto 0;
-  flex: none;
 }
 .sheet-head {
   display: flex;
@@ -451,6 +481,7 @@ button.row:active,
   gap: 8px;
   padding: 8px 8px 8px 16px;
   min-height: 56px;
+  touch-action: none;
 }
 .sheet-head h2 {
   flex: 1;
@@ -493,11 +524,6 @@ button.row:active,
     opacity: 0;
   }
 }
-@keyframes fade {
-  from {
-    opacity: 0;
-  }
-}
 .toast {
   position: fixed;
   left: 50%;
@@ -517,7 +543,7 @@ button.row:active,
   animation: fade 0.2s;
 }
 .toast button {
-  color: #6ee7b7;
+  color: #8ec1f7;
   font-weight: 700;
   padding: 0 10px;
   min-height: 44px;
@@ -625,9 +651,32 @@ button.row:active,
 .month {
   flex: 1;
   min-height: 0;
+  touch-action: pan-y;
+}
+.month-grid {
+  height: 100%;
+  min-height: 0;
   display: grid;
   grid-template-rows: repeat(6, minmax(0, 1fr));
-  touch-action: pan-y;
+}
+/* The whole grid slides in on a month change. */
+.month-grid.next {
+  animation: monthNext 0.26s ease-out;
+}
+.month-grid.prev {
+  animation: monthPrev 0.26s ease-out;
+}
+@keyframes monthNext {
+  from {
+    transform: translateX(7%);
+    opacity: 0.3;
+  }
+}
+@keyframes monthPrev {
+  from {
+    transform: translateX(-7%);
+    opacity: 0.3;
+  }
 }
 .week {
   display: grid;

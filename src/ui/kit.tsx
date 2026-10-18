@@ -6,32 +6,119 @@ import { initial } from "../core/prep";
 
 export function Sheet(props: {
   onClose: () => void;
+  /** Full-screen sheet from the start (the event editor). */
   full?: boolean;
   nested?: boolean;
+  /** Draggable sheet: slide up to fill the screen, slide down to collapse or close. */
+  expandable?: boolean;
   label: string;
   children: ReactNode;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [drag, setDrag] = useState(0); // live translateY while dragging
+  const [dragging, setDragging] = useState(false); // finger tracking: no CSS transition
+  const [moving, setMoving] = useState(false); // snap/expand/leave in progress
+  const [leaving, setLeaving] = useState(false);
+  const gesture = useRef<{ y: number; active: boolean } | null>(null);
+  const offsets = useRef({ peek: 0, full: 0 });
+  const state = useRef({ phase: "peek" as "peek" | "full", leaving: false });
+
   useEffect(() => {
     const prev = document.activeElement as HTMLElement | null;
     const focusable = ref.current?.querySelector<HTMLElement>("[autofocus]") ?? ref.current;
     focusable?.focus({ preventScroll: true });
     return () => prev?.focus?.({ preventScroll: true });
   }, []);
+
+  // Measure the peek height once (DaySheet content is static while mounted) and the full height.
+  useEffect(() => {
+    if (!props.expandable) return;
+    const el = ref.current;
+    if (!el) return;
+    offsets.current.peek = el.getBoundingClientRect().height;
+    const probe = document.createElement("div");
+    probe.style.cssText = "position:absolute;visibility:hidden;height:calc(env(safe-area-inset-top,0px))";
+    document.body.appendChild(probe);
+    offsets.current.full = Math.round(window.innerHeight - probe.getBoundingClientRect().height - 12);
+    probe.remove();
+  }, [props.expandable]);
+
+  /** Glide to a phase while the CSS keeps the class-based height honest afterwards. */
+  const settle = (next: "peek" | "full") => {
+    const el = ref.current;
+    if (!el || state.current.leaving) return;
+    state.current.phase = next;
+    setDragging(false);
+    setExpanded(next === "full");
+    setDrag(0);
+    setMoving(true);
+    el.style.height = `${Math.round(el.getBoundingClientRect().height)}px`;
+    void el.offsetHeight;
+    requestAnimationFrame(() => {
+      el.style.height = `${Math.round(next === "full" ? offsets.current.full : offsets.current.peek)}px`;
+      setTimeout(() => {
+        if (!state.current.leaving) el.style.height = "";
+        setMoving(false);
+      }, 280);
+    });
+  };
+
+  const leave = () => {
+    if (state.current.leaving) return;
+    state.current.leaving = true;
+    setLeaving(true);
+    setTimeout(() => props.onClose(), 240);
+  };
+
+  const onDown = (e: React.TouchEvent) => {
+    if (!props.expandable) return;
+    const el = ref.current;
+    if (!el || moving || state.current.leaving) return;
+    const target = e.target as HTMLElement;
+    const grip = !!target.closest(".grip");
+    const head = !!target.closest(".sheet-head") && !target.closest("button,input,textarea");
+    if (!grip && !head) return;
+    gesture.current = { y: e.touches[0].clientY, active: true };
+    setDragging(true); // freeze height/transform transitions while tracking the finger
+  };
+  const onMove = (e: React.TouchEvent) => {
+    const g = gesture.current;
+    if (!g?.active) return;
+    let dy = e.touches[0].clientY - g.y;
+    if (dy < 0 && state.current.phase === "peek") dy /= 3; // rubber band while stretching upward
+    setDrag(dy);
+  };
+  const onUp = () => {
+    const g = gesture.current;
+    gesture.current = null;
+    if (!g?.active) return;
+    const dy = drag;
+    if (state.current.phase === "peek" && dy < -70) return settle("full");
+    if (state.current.phase === "peek" && dy > 70) return leave();
+    if (state.current.phase === "full" && dy > 90) return settle("peek");
+    return settle(state.current.phase); // snap back where it was
+  };
+
   return (
     <div
-      className="shade"
+      className={`shade${leaving ? " leaving" : ""}`}
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) props.onClose();
       }}
     >
       <div
         ref={ref}
-        className={`sheet${props.full ? " full" : ""}`}
+        className={`sheet${props.full || expanded ? " full" : ""}${dragging ? " dragging" : ""}${leaving ? " leaving" : ""}`}
+        style={leaving ? undefined : dragging || moving ? { transform: `translateY(${drag}px)` } : undefined}
         role="dialog"
         aria-modal="true"
         aria-label={props.label}
         tabIndex={-1}
+        onTouchStart={onDown}
+        onTouchMove={onMove}
+        onTouchEnd={onUp}
+        onTouchCancel={onUp}
         onKeyDown={(e) => {
           // Nested sheets (inside a screen) close themselves; screens close via App.
           if (e.key === "Escape" && props.nested) {

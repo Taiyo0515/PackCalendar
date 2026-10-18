@@ -59,6 +59,7 @@ export function mergeImportsSync(s: State, prepared: Prepared[]): [number, numbe
         calendar: "main" as const,
         plan: emptyPlan(),
         repeat: d.repeat,
+        alert: null,
       };
       s.events.push(event);
       byId.set(id, event);

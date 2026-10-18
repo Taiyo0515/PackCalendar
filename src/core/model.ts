@@ -59,6 +59,12 @@ export const repeatSchema = z.object({
   weekdays: z.array(z.number().int().min(0).max(6)).max(7),
   until: day.nullable(),
 });
+/**
+ * Special per-event notification offset chosen in the editor, added to the event's start.
+ * Timed events: negative = before the start (-60 = one hour before, -1440 = the day before).
+ * All-day events: offset from the start day 00:00 (480 = that morning 8:00, -240 = 20:00 the day before).
+ */
+const alertOffset = z.number().int().min(-1440).max(20160).nullable();
 export const eventSchema = z.object({
   id,
   title: name,
@@ -69,6 +75,7 @@ export const eventSchema = z.object({
   calendar: calendarId.default("main"),
   plan: planSchema,
   repeat: repeatSchema.nullable(),
+  alert: alertOffset.default(null),
 });
 export const patchSchema = z
   .object({
@@ -79,6 +86,7 @@ export const patchSchema = z
     memo: z.string().max(10000),
     calendar: calendarId,
     plan: planSchema.partial(),
+    alert: alertOffset,
   })
   .partial();
 export const exceptionSchema = z.object({

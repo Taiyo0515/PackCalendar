@@ -17,7 +17,18 @@ export function CalendarScreen() {
   const todayKey = dayKey(now);
   const [month, setMonth] = useState(todayKey.slice(0, 7));
   const [selected, setSelected] = useState(todayKey);
-  const shift = (n: number) => setMonth((m) => addMonths(m, n));
+  /** Direction of the last month change: 1 forward, -1 back, 0 none. */
+  const [dir, setDir] = useState(0);
+  const shift = (n: number) => {
+    setDir(n > 0 ? 1 : -1);
+    setMonth((m) => addMonths(m, n));
+  };
+  const backToday = () => {
+    const nowMonth = todayKey.slice(0, 7);
+    if (month !== nowMonth) setDir(nowMonth > month ? 1 : -1);
+    setMonth(nowMonth);
+    setSelected(todayKey);
+  };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -39,13 +50,7 @@ export function CalendarScreen() {
             {Number(month.slice(0, 4))}年{Number(month.slice(5))}月
           </h1>
           {month !== todayKey.slice(0, 7) && (
-            <button
-              className="text-btn"
-              onClick={() => {
-                setMonth(todayKey.slice(0, 7));
-                setSelected(todayKey);
-              }}
-            >
+            <button className="text-btn" onClick={backToday}>
               今日
             </button>
           )}
@@ -60,11 +65,15 @@ export function CalendarScreen() {
         <CalendarFilter />
         <Month
           month={month}
+          dir={dir}
           selected={selected}
           onShift={shift}
           onPick={(day) => {
             setSelected(day);
-            if (day.slice(0, 7) !== month) setMonth(day.slice(0, 7));
+            if (day.slice(0, 7) !== month) {
+              setDir(day.slice(0, 7) > month ? 1 : -1);
+              setMonth(day.slice(0, 7));
+            }
             if (!wide) open({ type: "day", day });
           }}
         />
@@ -159,7 +168,15 @@ function PrepCard({ unitKey }: { unitKey: string }) {
   );
 }
 
-function Month(props: { month: string; selected: string; onPick: (d: string) => void; onShift: (n: number) => void }) {
+function Month(
+  props: {
+    month: string;
+    dir: number;
+    selected: string;
+    onPick: (d: string) => void;
+    onShift: (n: number) => void;
+  },
+) {
   const { state, now } = useApp();
   const ws = state.settings.weekStart;
   const days = monthGrid(props.month, ws);
@@ -219,7 +236,9 @@ function Month(props: { month: string; selected: string; onPick: (d: string) => 
           if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) props.onShift(dx < 0 ? 1 : -1);
         }}
       >
-        {[0, 1, 2, 3, 4, 5].map((w) => (
+        {/* The inner grid is keyed on the month so a change replays the slide-in animation. */}
+        <div key={props.month} className={`month-grid${dirClass(props.dir)}`}>
+          {[0, 1, 2, 3, 4, 5].map((w) => (
           <div className="week" key={w}>
             {days.slice(w * 7, w * 7 + 7).map((day) => {
               const holiday = state.settings.holidays ? holidayName(day) : null;
@@ -260,7 +279,11 @@ function Month(props: { month: string; selected: string; onPick: (d: string) => 
             })}
           </div>
         ))}
+        </div>
       </div>
     </>
   );
 }
+
+/** Animation class for the month grid, based on the direction of the change. */
+const dirClass = (dir: number) => (dir > 0 ? " next" : dir < 0 ? " prev" : "");

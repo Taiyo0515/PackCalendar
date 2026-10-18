@@ -54,7 +54,7 @@ export function DayList({ day }: { day: string }) {
 export function DaySheet({ day }: { day: string }) {
   const { open, close } = useApp();
   return (
-    <Sheet onClose={() => close()} label="日の予定">
+    <Sheet onClose={() => close()} label="日の予定" expandable>
       <div className="sheet-head">
         <DayTitle day={day} />
         <button className="round-btn" aria-label="この日に予定を追加" onClick={() => open({ type: "edit", key: null, day })}>

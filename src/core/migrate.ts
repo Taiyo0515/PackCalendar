@@ -66,6 +66,7 @@ export function fromV2(old: Any, now = new Date()): State {
         e.recurrence && e.recurrence !== "none"
           ? { freq: e.recurrence, weekdays: e.weekdays ?? [], until: e.until ?? null }
           : null,
+      alert: null,
     };
   });
   const eventIds = new Set(s.events.map((e) => e.id));

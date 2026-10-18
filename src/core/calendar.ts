@@ -127,7 +127,7 @@ export function saveOne(s: State, key: string, draft: EventDraft) {
   if (!e) return;
   const plain = occurrenceOf({ ...s, exceptions: {} }, e, key.slice(at + 1))!;
   const patch: Patch = {};
-  for (const f of ["title", "start", "end", "allDay", "memo", "calendar"] as const)
+  for (const f of ["title", "start", "end", "allDay", "memo", "calendar", "alert"] as const)
     if (JSON.stringify(draft[f]) !== JSON.stringify(plain[f]))
       Object.assign(patch, { [f]: draft[f] });
   const plan: Partial<Plan> = {};

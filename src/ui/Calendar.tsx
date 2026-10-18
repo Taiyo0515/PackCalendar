@@ -240,6 +240,8 @@ function Month(
       tr.style.transform = `translateX(${from}px)`;
       void tr.offsetHeight; // commit the jump before the glide
       requestAnimationFrame(() => {
+        // A finger that re-grabbed within the same frame cancels the glide; never overwrite it.
+        if (tr.style.transition !== "none") return;
         tr.style.transition = "transform 0.24s cubic-bezier(0.32, 0.72, 0.2, 1)";
         tr.style.transform = `translateX(${-w}px)`;
       });
@@ -290,9 +292,12 @@ function Month(
     const fling = dt < 240 && Math.abs(dx) > 45;
     const d = dx <= -w * 0.3 || (fling && dx < 0) ? 1 : dx >= w * 0.3 || (fling && dx > 0) ? -1 : 0;
     if (d) {
-      // Where the strip sits when the new month becomes the center pane, so nothing jumps.
-      const dxc = Math.max(-w, Math.min(w, dx));
-      pending.current = dxc - w + d * w;
+      // Start the glide from where the strip is ACTUALLY painted, not from `changedTouches`.
+      // iOS compresses touchmoves in fast flicks, so the reported end position can be past
+      // the last rendered frame; using the rendered position keeps the swap seamless.
+      const m = /translateX\((-?[\d.]+)px\)/.exec(tr.style.transform);
+      const cur = m ? parseFloat(m[1]) : -w;
+      pending.current = cur + d * w;
       props.onShift(d);
     } else {
       tr.style.transition = "transform 0.22s ease-out";

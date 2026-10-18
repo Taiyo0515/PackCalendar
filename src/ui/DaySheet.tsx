@@ -95,6 +95,8 @@ export function DaySheet({ day }: { day: string }) {
     tr.style.transform = `translateX(${from}px)`;
     void tr.offsetHeight; // commit the jump before the glide
     requestAnimationFrame(() => {
+      // A finger that re-grabbed within the same frame cancels the glide; never overwrite it.
+      if (tr.style.transition !== "none") return;
       tr.style.transition = "transform 0.24s cubic-bezier(0.32, 0.72, 0.2, 1)";
       tr.style.transform = `translateX(${-w}px)`;
     });
@@ -130,9 +132,11 @@ export function DaySheet({ day }: { day: string }) {
     const fling = dt < 240 && Math.abs(dx) > 45;
     const dir = dx <= -w * 0.3 || (fling && dx < 0) ? 1 : dx >= w * 0.3 || (fling && dx > 0) ? -1 : 0;
     if (dir) {
-      // Where the strip sits when the new day becomes the center pane, so nothing jumps.
-      const dxc = Math.max(-w, Math.min(w, dx));
-      pending.current = dxc - w + dir * w;
+      // Glide from the position actually painted (see Calendar): touchmove compression on
+      // iOS can report an end position past the last rendered frame, which would snap.
+      const m = /translateX\((-?[\d.]+)px\)/.exec(tr.style.transform);
+      const cur = m ? parseFloat(m[1]) : -w;
+      pending.current = cur + dir * w;
       setD((x) => addDays(x, dir));
     } else {
       tr.style.transition = "transform 0.22s ease-out";

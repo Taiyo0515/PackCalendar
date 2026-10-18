@@ -1,4 +1,6 @@
 name: Build packages
+# Builds BOTH packages (ipa + apk in one release) and is used only when asked.
+# The usual release is the ipa-only workflow (ios.yml, tags ios-v*).
 on:
   push:
     tags: ["v*"]

@@ -23,17 +23,26 @@ npx wrangler secret bulk worker/.dev.vars.json --config worker/wrangler.jsonc
 
 アプリの設定で通知をオンにし、`worker/.dev.vars.json` の `INVITATION_CODE`（招待コード）を入れて接続します。iPhone の Web 版で通知を受け取るには、Safari でホーム画面に追加したアプリから接続します。
 
+# PackCalendar の公開
+
 ## アプリのビルド（GitHub Actions）
 
-バージョンを区切るときは、`v0.3.2` のようなタグを 1 つ push するだけです。ipa と apk を **同じリリースに** 添付し、リリースは **pre-release** として表示されます。
+いつものリリースは **ipa だけ** です。バージョンを区切るときは `ios-v0.3.3` のようなタグを 1 つ push してください。
 
 ```sh
-git tag v0.3.2
-git push origin v0.3.2
+git tag ios-v0.3.3
+git push origin ios-v0.3.3
 ```
 
-- 手動実行：GitHub の Actions → **Build packages** → Run workflow。成果物は Artifacts の `PackCalendar-ipa` と `PackCalendar-apk`。
-- ワークフローは `.github/workflows/package.yml`。macOS のジョブで ipa、ubuntu のジョブで apk を作り、最後の `publish` ジョブが両方を同じリリースに載せる。
+APK も必要なとき（依頼があったとき）だけ、`v0.3.3` のように `ios-` や `android-` を付けないタグを push します。ipa と apk を **同じリリースに** 添付し、リリースは **pre-release** として表示されます。
+
+```sh
+git tag v0.3.3
+git push origin v0.3.3
+```
+
+- 手動実行：GitHub の Actions → **Build iOS IPA**（ipa だけ）/ **Build packages**（ipa と apk）。成果物は Artifacts の `PackCalendar-ipa` と `PackCalendar-apk`。
+- ワークフローは `.github/workflows/ios.yml`（macOS のジョブで ipa を作ってリリースに添付）と `.github/workflows/package.yml`（macOS で ipa、ubuntu で apk を作り、最後の `publish` ジョブが両方を同じリリースに載せる）。
 - 開発中のバージョンは 0 始まり（0.x.y）。機能追加で 0.4.0、修正で 0.3.3 のように上げ、安定したら 1.0.0 に昇格する。開発中のリリースはすべて pre-release。
 
 ### ipa の中身

@@ -76,6 +76,8 @@ jobs:
     permissions:
       contents: write
     steps:
+      # Checkout is needed for .github/release-notes.md (per-version notes file).
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           name: PackCalendar-ipa

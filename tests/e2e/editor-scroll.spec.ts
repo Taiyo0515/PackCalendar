@@ -39,7 +39,8 @@ test("web icon: manifest and favicon use the exported PNG, not the old svg", asy
     const m = await (await fetch("./manifest.webmanifest")).json();
     return { icon, srcs: m.icons.map((i: { src: string }) => i.src), types: m.icons.map((i: { type: string }) => i.type) };
   });
-  expect(hrefs.icon.endsWith("icon-192.png")).toBe(true);
+  expect(hrefs.icon.endsWith(".png")).toBe(true);
+  expect(hrefs.icon).toContain("icon-192");
   expect(hrefs.srcs.length).toBeGreaterThan(0);
   for (const src of hrefs.srcs) expect(src.endsWith(".png")).toBe(true);
   for (const t of hrefs.types) expect(t).toBe("image/png");

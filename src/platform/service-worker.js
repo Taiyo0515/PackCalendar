@@ -20,7 +20,7 @@ self.addEventListener('fetch', event => {
 });
 self.addEventListener('push', event => {
   let data = {}; try { data = event.data?.json() ?? {}; } catch { data = { body: event.data?.text() }; }
-  event.waitUntil(self.registration.showNotification(data.title || 'PackCalendarの準備', { body: data.body || '予定の準備を確認してください。', icon: './assets/icon-192-v3.png', badge: './assets/icon-192-v3.png', tag: data.id || 'packcalendar-prep', data: { url: '#home' } }));
+  event.waitUntil(self.registration.showNotification(data.title || 'PackCalendarの準備', { body: data.body || '予定の準備を確認してください。', icon: './assets/icon-192-v4.png', badge: './assets/icon-192-v4.png', tag: data.id || 'packcalendar-prep', data: { url: '#home' } }));
 });
 self.addEventListener('notificationclick', event => {
   event.notification.close();
